@@ -1,0 +1,67 @@
+# =========================================================================
+# SocialFlow - Git Ignore Configuration
+# =========================================================================
+
+# Maven & Build Artifacts
+**/target/
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.project
+.classpath
+.settings/
+.metadata/
+bin/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Logs & Runtime
+*.log
+logs/
+*.pid
+
+# Node & Frontend Build (if applicable)
+**/node_modules/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Sensitive Data
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.pfx
+
+# OS Specific
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Docker Volume & Runtime data (local mounts)
+.docker/
+docker-data/
+
+# Temporary / Scratch Files
+scratch/
+JULES_REPORT.md

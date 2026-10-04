@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocialFlow - רשת חברתית מבוססת Microservices</title>
+  <meta name="description" content="ממשק משתמש מתקדם ומודרני לבדיקה ואינטראקציה עם שירותי SocialFlow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <!-- Background Glow Orbs -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+
+  <!-- Header -->
+  <header class="navbar" id="app-navbar">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">Social<span class="brand-accent">Flow</span></span>
+          <span class="brand-badge">Docker Stack 🐳</span>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="nav-search">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </svg>
+          <input type="text" id="global-search-input" placeholder="חיפוש פוסטים, תגיות או נושאים (Elasticsearch)..." autocomplete="off">
+          <kbd class="search-kbd">Enter</kbd>
+        </div>
+        <div id="search-results-dropdown" class="search-dropdown hidden"></div>
+      </div>
+
+      <!-- Right Header Actions -->
+      <div class="nav-actions">
+        <!-- Live Gateway Status Pill -->
+        <button id="system-status-pill" class="status-pill status-healthy" title="לחץ לבדיקת כל שירותי Docker">
+          <span class="status-dot"></span>
+          <span class="status-label">סביבת Docker פעילה 🐳</span>
+        </button>
+
+        <!-- Current User Info / Login Button -->
+        <div id="auth-section" class="auth-section">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container Layout -->
+  <div class="app-layout">
+    <!-- Left Sidebar: Navigation & Fast Testing Switcher -->
+    <aside class="sidebar-left" id="sidebar-left">
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="for-you" id="nav-for-you">
+          <span class="nav-icon">✨</span>
+          <span class="nav-label">פיד בשבילך (For You)</span>
+        </button>
+        <button class="nav-item" data-tab="following" id="nav-following">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">נעקבים (Following)</span>
+        </button>
+        <button class="nav-item" data-tab="trending" id="nav-trending">
+          <span class="nav-icon">🔥</span>
+          <span class="nav-label">טרנדים פופולריים</span>
+        </button>
+        <button class="nav-item" data-tab="bookmarks" id="nav-bookmarks">
+          <span class="nav-icon">🔖</span>
+          <span class="nav-label">סימניות שמורות</span>
+        </button>
+      </nav>
+
+      <!-- Fast User Simulation Box -->
+      <div class="card glass-card user-switcher-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">🔄 החלפת משתמש מהירה</span>
+          <span class="card-subtitle-xs">לבדיקת הרשאות ואינטראקציה</span>
+        </div>
+        <div class="quick-users-grid" id="quick-users-grid">
+          <!-- Users injected by JS -->
+        </div>
+      </div>
+
+      <!-- System Diagnostic Launcher -->
+      <div class="card glass-card diagnostics-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">⚡ בדיקת תקינות מערכת</span>
+        </div>
+        <p class="diagnostics-desc">בדוק חיבור ל-7 שירותי המערכת (Postgres, Kafka, ES, Gateway, Post, Feed, User)</p>
+        <button id="btn-run-diagnostics" class="btn btn-secondary btn-full">
+          <span>🩺 הרץ בדיקת בריאות חיה</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Feed Center Column -->
+    <main class="main-content" id="main-content">
+      <!-- Create Post Box -->
+      <section class="card glass-card composer-card" id="composer-card">
+        <div class="composer-top">
+          <div class="avatar-wrapper">
+            <img id="composer-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=idan" alt="User Avatar" class="user-avatar">
+          </div>
+          <div class="composer-input-area">
+            <textarea id="composer-content" placeholder="מה קורה ב-SocialFlow? שתף עדכון, תובנה או שאלה..." rows="3"></textarea>
+          </div>
+        </div>
+
+        <!-- Media Preview Area -->
+        <div id="composer-media-preview" class="media-preview-container hidden">
+          <img id="preview-image" src="" alt="תצוגה מקדימה של תמונה">
+          <button id="btn-remove-media" class="btn-icon remove-media-btn" title="הסר תמונה">✕</button>
+        </div>
+
+        <!-- Optional Poll Builder Area -->
+        <div id="composer-poll-box" class="poll-builder-box hidden">
+          <div class="poll-builder-header">
+            <span class="poll-title-sm">📊 יצירת סקר חדש</span>
+            <button id="btn-close-poll" class="btn-text-xs">ביטול סקר</button>
+          </div>
+          <input type="text" id="poll-question" placeholder="שאלת הסקר..." class="form-input mb-2">
+          <div id="poll-options-list" class="poll-options-inputs">
+            <input type="text" placeholder="אפשרות 1" class="form-input poll-opt-input mb-1">
+            <input type="text" placeholder="אפשרות 2" class="form-input poll-opt-input mb-1">
+          </div>
+          <button id="btn-add-poll-option" class="btn-text-xs mt-1">+ הוסף אפשרות</button>
+        </div>
+
+        <!-- Composer Bottom Toolbar -->
+        <div class="composer-footer">
+          <div class="composer-tools">
+            <button id="btn-toggle-media" class="btn-icon-labeled" title="הוסף קישור לתמונה">
+              <span>🖼️</span> <span class="tool-text">תמונה</span>
+            </button>
+            <button id="btn-toggle-poll" class="btn-icon-labeled" title="צור סקר">
+              <span>📊</span> <span class="tool-text">סקר</span>
+            </button>
+            <button id="btn-add-hashtag" class="btn-icon-labeled" title="הוסף תגית #">
+              <span>#️⃣</span> <span class="tool-text">תגית</span>
+            </button>
+          </div>
+
+          <!-- Hidden Media Input Modal / Popover -->
+          <div id="media-url-input-wrap" class="media-input-inline hidden">
+            <input type="url" id="media-url-input" placeholder="הדבק קישור ישיר לתמונה (URL)..." class="form-input-sm">
+            <button id="btn-confirm-media" class="btn btn-primary btn-xs">צרף</button>
+          </div>
+
+          <div class="composer-submit-group">
+            <select id="composer-visibility" class="select-compact">
+              <option value="PUBLIC">🌐 ציבורי</option>
+              <option value="FOLLOWERS">👥 עוקבים בלבד</option>
+            </select>
+            <button id="btn-publish-post" class="btn btn-primary btn-publish">
+              <span class="btn-label">פרסם פוסט</span>
+              <span class="spinner hidden"></span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feed Header / Active Filter Bar -->
+      <div class="feed-header-bar">
+        <div class="feed-title-wrap">
+          <h1 id="feed-heading" class="feed-title">פיד בשבילך (For You)</h1>
+          <span id="feed-count-badge" class="badge">טוען...</span>
+        </div>
+        <button id="btn-refresh-feed" class="btn btn-ghost btn-sm" title="רענן פוסטים">
+          <span class="refresh-icon">🔄</span> רענן
+        </button>
+      </div>
+
+      <!-- Feed Stream Container -->
+      <section id="feed-container" class="feed-container">
+        <!-- Injected dynamically by app.js -->
+        <div class="feed-loading-skeleton">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Right Sidebar: Trends & Microservices Health Monitor -->
+    <aside class="sidebar-right" id="sidebar-right">
+      <!-- Live Microservices Status Panel -->
+      <div class="card glass-card monitor-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">🐳 קונטיינרים ב-Docker</span>
+          <span class="live-pulse-badge">DOCKER</span>
+        </div>
+        <div class="services-list" id="services-health-list">
+          <div class="service-row" data-service="gateway">
+            <span class="service-dot online"></span>
+            <div class="service-meta">
+              <span class="service-name">socialflow-api-gateway</span>
+              <span class="service-port">Docker Port 8088</span>
+            </div>
+            <span class="service-status">מקוון</span>
+          </div>
+          <div class="service-row" data-service="posts">
+            <span class="service-dot online"></span>
+            <div class="service-meta">
+              <span class="service-name">socialflow-post-service</span>
+              <span class="service-port">Docker Port 8082</span>
+            </div>
+            <span class="service-status">מקוון</span>
+          </div>
+          <div class="service-row" data-service="feed">
+            <span class="service-dot online"></span>
+            <div class="service-meta">
+              <span class="service-name">socialflow-feed-service</span>
+              <span class="service-port">Docker Port 8083</span>
+            </div>
+            <span class="service-status">מקוון</span>
+          </div>
+          <div class="service-row" data-service="user">
+            <span class="service-dot online"></span>
+            <div class="service-meta">
+              <span class="service-name">socialflow-user-service</span>
+              <span class="service-port">Docker Port 8081</span>
+            </div>
+            <span class="service-status">מקוון</span>
+          </div>
+          <div class="service-row" data-service="infra">
+            <span class="service-dot online"></span>
+            <div class="service-meta">
+              <span class="service-name">postgres / kafka / elasticsearch</span>
+              <span class="service-port">Docker Network (socialflow-net)</span>
+            </div>
+            <span class="service-status">מקוון</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trending Hashtags Card (from /api/v1/feed/trending-tags) -->
+      <div class="card glass-card trending-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">🏷️ תגיות פופולריות</span>
+          <span class="card-subtitle-xs">בזמן אמת</span>
+        </div>
+        <div id="trending-tags-container" class="trending-tags-list">
+          <div class="tag-chip-skeleton"></div>
+          <div class="tag-chip-skeleton"></div>
+          <div class="tag-chip-skeleton"></div>
+        </div>
+      </div>
+
+      <!-- Quick Tips Card -->
+      <div class="card glass-card tips-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">💡 בדיקות מומלצות</span>
+        </div>
+        <ul class="tips-list">
+          <li><strong>תגובות (Reactions):</strong> רחף על כפתור התגובה בכל פוסט ובחר אימוג'י (Like, Love, Insightful וכו').</li>
+          <li><strong>סקרים:</strong> הצבע בסקר ובדוק את התעדכנות האחוזים בזמן אמת.</li>
+          <li><strong>חיפוש:</strong> הקלד בתיבת החיפוש לבדיקת מנוע Elasticsearch.</li>
+          <li><strong>החלפת משתמש:</strong> לחץ על משתמש בסרגל הצד לבדיקת Toggle של תגובות ועקיבה.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Auth Modal (Login / Register) -->
+  <div id="auth-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-modal">
+      <div class="modal-header">
+        <div class="modal-tabs">
+          <button id="modal-tab-login" class="modal-tab-btn active">התחברות</button>
+          <button id="modal-tab-register" class="modal-tab-btn">הרשמה</button>
+        </div>
+        <button id="btn-close-auth-modal" class="btn-icon">✕</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="modal-body form-body">
+        <div class="form-group">
+          <label for="login-username">שם משתמש</label>
+          <input type="text" id="login-username" class="form-input" placeholder="למשל: idan" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">סיסמה</label>
+          <input type="password" id="login-password" class="form-input" placeholder="הזן סיסמה..." required>
+        </div>
+        <div class="quick-fill-hint">
+          <span>מילוי מהיר לבדיקה:</span>
+          <button type="button" class="btn-text-xs fill-login-btn" data-user="idan" data-pass="password123">idan</button>
+          <button type="button" class="btn-text-xs fill-login-btn" data-user="testuser99" data-pass="password123">testuser99</button>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full mt-3">התחבר</button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="modal-body form-body hidden">
+        <div class="form-group">
+          <label for="reg-username">שם משתמש</label>
+          <input type="text" id="reg-username" class="form-input" placeholder="שם ייחודי (3-50 תווים)" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-fullname">שם מלא</label>
+          <input type="text" id="reg-fullname" class="form-input" placeholder="למשל: ישראל ישראלי">
+        </div>
+        <div class="form-group">
+          <label for="reg-email">דוא״ל</label>
+          <input type="email" id="reg-email" class="form-input" placeholder="user@example.com" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-password">סיסמה</label>
+          <input type="password" id="reg-password" class="form-input" placeholder="לפחות 6 תווים" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full mt-3">צור חשבון והתחבר</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Diagnostics Inspector Modal -->
+  <div id="diagnostics-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-modal modal-lg">
+      <div class="modal-header">
+        <h2 class="modal-title">🩺 דוח בריאות מערכת SocialFlow</h2>
+        <button id="btn-close-diagnostics" class="btn-icon">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="diagnostics-results-grid" class="diag-grid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-retest-diagnostics" class="btn btn-primary">בצע בדיקה מחדש</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
