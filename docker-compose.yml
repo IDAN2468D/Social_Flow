@@ -1,6 +1,6 @@
 services:
   # =========================================================================
-  # 1. תשתית נתונים והודעות (Infrastructure)
+  # 1. תשתית נתונים, הודעות ואחסון (Infrastructure)
   # =========================================================================
   postgres:
     image: postgres:16-alpine
@@ -59,6 +59,22 @@ services:
       - "9205:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
+    networks:
+      - socialflow-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: socialflow-minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
+    ports:
+      - "9000:9000"   # S3 API Port
+      - "9001:9001"   # MinIO Web Console
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
     networks:
       - socialflow-net
 
@@ -125,6 +141,49 @@ services:
     networks:
       - socialflow-net
 
+  media-service:
+    build:
+      context: ./media-service
+      dockerfile: Dockerfile
+    container_name: socialflow-media-service
+    restart: on-failure
+    ports:
+      - "8084:8084"
+    environment:
+      SERVER_PORT: 8084
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_S3_PUBLIC_ENDPOINT: http://localhost:9000
+      AWS_S3_BUCKET: socialflow-media
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadminpassword
+      JWT_SECRET: ${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    depends_on:
+      - minio
+    networks:
+      - socialflow-net
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: socialflow-notification-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - socialflow-net
+
   api-gateway:
     build:
       context: ./api-gateway
@@ -137,10 +196,15 @@ services:
       USER_SERVICE_URI: http://user-service:8081
       POST_SERVICE_URI: http://post-service:8082
       FEED_SERVICE_URI: http://feed-service:8083
+      MEDIA_SERVICE_URI: http://media-service:8084
+      NOTIFICATION_SERVICE_URI: http://notification-service:8085
+      NOTIFICATION_SERVICE_WS_URI: ws://notification-service:8085
     depends_on:
       - user-service
       - post-service
       - feed-service
+      - media-service
+      - notification-service
     networks:
       - socialflow-net
 
@@ -166,6 +230,8 @@ services:
 volumes:
   postgres_data:
   es_data:
+  minio_data:
+  elasticsearch_data:
 
 networks:
   socialflow-net:

@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="index.css">
+  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
 </head>
 <body>
   <!-- Background Glow Orbs -->
@@ -52,6 +54,31 @@
           <span class="status-label">סביבת Docker פעילה 🐳</span>
         </button>
 
+        <!-- Real-Time Notification Bell & Dropdown -->
+        <div class="notifications-wrapper" id="notifications-wrapper">
+          <button id="btn-notifications-toggle" class="btn-icon-bubble" title="התראות בזמן אמת" aria-label="התראות">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <span id="unread-notifications-count" class="badge-counter hidden">0</span>
+          </button>
+
+          <div id="notifications-dropdown" class="notifications-dropdown hidden">
+            <div class="dropdown-header">
+              <div class="dropdown-title-group">
+                <span class="dropdown-title">🔔 התראות ועדכונים</span>
+                <span id="ws-status-indicator" class="ws-status-pill ws-connected" title="מחובר ב-WebSocket בזמן אמת">
+                  <span class="pulse-dot"></span> <span class="ws-status-text">חי</span>
+                </span>
+              </div>
+              <button id="btn-mark-all-read" class="btn-link-xs">סמן הכל כנקרא</button>
+            </div>
+            <div id="notifications-list" class="notifications-list">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+
         <!-- Current User Info / Login Button -->
         <div id="auth-section" class="auth-section">
           <!-- Rendered via JS -->
@@ -73,6 +100,11 @@
           <span class="nav-icon">👥</span>
           <span class="nav-label">נעקבים (Following)</span>
         </button>
+        <button class="nav-item" data-tab="notifications" id="nav-notifications">
+          <span class="nav-icon">🔔</span>
+          <span class="nav-label">התראות</span>
+          <span id="sidebar-unread-badge" class="badge-counter sidebar-counter hidden">0</span>
+        </button>
         <button class="nav-item" data-tab="trending" id="nav-trending">
           <span class="nav-icon">🔥</span>
           <span class="nav-label">טרנדים פופולריים</span>
@@ -81,6 +113,15 @@
           <span class="nav-icon">🔖</span>
           <span class="nav-label">סימניות שמורות</span>
         </button>
+        <div class="nav-divider" style="height: 1px; background: var(--border-subtle); margin: 8px 12px;"></div>
+        <a href="login.html" class="nav-item nav-link-item" id="sidebar-nav-login" style="text-decoration: none;">
+          <span class="nav-icon">🔑</span>
+          <span class="nav-label">עמוד התחברות</span>
+        </a>
+        <a href="register.html" class="nav-item nav-link-item" id="sidebar-nav-register" style="text-decoration: none;">
+          <span class="nav-icon">✨</span>
+          <span class="nav-label">עמוד הרשמה</span>
+        </a>
       </nav>
 
       <!-- Fast User Simulation Box -->
@@ -142,9 +183,10 @@
         <!-- Composer Bottom Toolbar -->
         <div class="composer-footer">
           <div class="composer-tools">
-            <button id="btn-toggle-media" class="btn-icon-labeled" title="הוסף קישור לתמונה">
+            <button id="btn-toggle-media" class="btn-icon-labeled" title="הוסף תמונה">
               <span>🖼️</span> <span class="tool-text">תמונה</span>
             </button>
+            <input type="file" id="media-file-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
             <button id="btn-toggle-poll" class="btn-icon-labeled" title="צור סקר">
               <span>📊</span> <span class="tool-text">סקר</span>
             </button>
@@ -155,8 +197,11 @@
 
           <!-- Hidden Media Input Modal / Popover -->
           <div id="media-url-input-wrap" class="media-input-inline hidden">
-            <input type="url" id="media-url-input" placeholder="הדבק קישור ישיר לתמונה (URL)..." class="form-input-sm">
+            <button type="button" id="btn-trigger-upload" class="btn btn-secondary btn-xs">📁 העלה קובץ</button>
+            <span class="media-separator">או</span>
+            <input type="url" id="media-url-input" placeholder="הדבק קישור (URL)..." class="form-input-sm">
             <button id="btn-confirm-media" class="btn btn-primary btn-xs">צרף</button>
+            <span id="media-upload-spinner" class="spinner-sm hidden" title="מעלה קובץ..."></span>
           </div>
 
           <div class="composer-submit-group">
@@ -234,6 +279,14 @@
             </div>
             <span class="service-status">מקוון</span>
           </div>
+          <div class="service-row" data-service="notification">
+            <span class="service-dot online"></span>
+            <div class="service-meta">
+              <span class="service-name">socialflow-notification-service</span>
+              <span class="service-port">Docker Port 8085</span>
+            </div>
+            <span class="service-status">מקוון</span>
+          </div>
           <div class="service-row" data-service="infra">
             <span class="service-dot online"></span>
             <div class="service-meta">
@@ -273,57 +326,6 @@
     </aside>
   </div>
 
-  <!-- Auth Modal (Login / Register) -->
-  <div id="auth-modal" class="modal-backdrop hidden">
-    <div class="modal-card glass-modal">
-      <div class="modal-header">
-        <div class="modal-tabs">
-          <button id="modal-tab-login" class="modal-tab-btn active">התחברות</button>
-          <button id="modal-tab-register" class="modal-tab-btn">הרשמה</button>
-        </div>
-        <button id="btn-close-auth-modal" class="btn-icon">✕</button>
-      </div>
-
-      <!-- Login Form -->
-      <form id="login-form" class="modal-body form-body">
-        <div class="form-group">
-          <label for="login-username">שם משתמש</label>
-          <input type="text" id="login-username" class="form-input" placeholder="למשל: idan" required>
-        </div>
-        <div class="form-group">
-          <label for="login-password">סיסמה</label>
-          <input type="password" id="login-password" class="form-input" placeholder="הזן סיסמה..." required>
-        </div>
-        <div class="quick-fill-hint">
-          <span>מילוי מהיר לבדיקה:</span>
-          <button type="button" class="btn-text-xs fill-login-btn" data-user="idan" data-pass="password123">idan</button>
-          <button type="button" class="btn-text-xs fill-login-btn" data-user="testuser99" data-pass="password123">testuser99</button>
-        </div>
-        <button type="submit" class="btn btn-primary btn-full mt-3">התחבר</button>
-      </form>
-
-      <!-- Register Form -->
-      <form id="register-form" class="modal-body form-body hidden">
-        <div class="form-group">
-          <label for="reg-username">שם משתמש</label>
-          <input type="text" id="reg-username" class="form-input" placeholder="שם ייחודי (3-50 תווים)" required>
-        </div>
-        <div class="form-group">
-          <label for="reg-fullname">שם מלא</label>
-          <input type="text" id="reg-fullname" class="form-input" placeholder="למשל: ישראל ישראלי">
-        </div>
-        <div class="form-group">
-          <label for="reg-email">דוא״ל</label>
-          <input type="email" id="reg-email" class="form-input" placeholder="user@example.com" required>
-        </div>
-        <div class="form-group">
-          <label for="reg-password">סיסמה</label>
-          <input type="password" id="reg-password" class="form-input" placeholder="לפחות 6 תווים" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-full mt-3">צור חשבון והתחבר</button>
-      </form>
-    </div>
-  </div>
 
   <!-- Diagnostics Inspector Modal -->
   <div id="diagnostics-modal" class="modal-backdrop hidden">

@@ -2,6 +2,7 @@ package com.socialflow.post.service;
 
 import com.socialflow.post.config.UserPrincipal;
 import com.socialflow.post.dto.*;
+import com.socialflow.post.event.CommentCreatedEvent;
 import com.socialflow.post.event.PostCreatedEvent;
 import com.socialflow.post.event.PostDeletedEvent;
 import com.socialflow.post.event.PostLikedEvent;
@@ -325,6 +326,15 @@ public class PostService {
 
         post.setCommentsCount(post.getCommentsCount() + 1);
         postRepository.save(post);
+
+        postKafkaProducer.emitCommentCreated(CommentCreatedEvent.builder()
+                .commentId(savedComment.getId())
+                .postId(postId)
+                .authorId(currentUser.getUserId())
+                .authorUsername(currentUser.getUsername())
+                .postAuthorId(post.getAuthorId())
+                .content(request.getContent())
+                .build());
 
         return mapCommentToDto(savedComment);
     }

@@ -77,6 +77,7 @@ flowchart TD
 | **`user-service`** | Spring Boot 3, Spring Security, JWT, JPA | `8081` | Authentication & authorization (JWT), registration, login, user profiles, following/unfollowing relationships. |
 | **`post-service`** | Spring Boot 3, Spring Data JPA, Kafka | `8082` | Post creation, multimedia attachments, interactive polls with real-time voting, reposts/quotes, 6 reaction types, comments, bookmarks, and pinned posts. |
 | **`feed-service`** | Spring Boot 3, Spring Data Elasticsearch, JPA | `8083` | Aggregated timeline feeds ("For You", "Following", "Trending"), trending hashtags calculation, full-text search engine with keyword and hashtag indexing. |
+| **`media-service`** | Spring Boot 3, AWS S3 SDK v2, MinIO | `8084` | S3-compatible media upload service, presigned URL generation, bucket auto-provisioning, and secure public assets delivery. |
 | **`frontend`** | HTML5, Vanilla JavaScript, CSS3, Nginx | `3000` | Modern, responsive social feed UI with dark mode, glassmorphism, dynamic modals, live reactions, RTL support, and tab switching. |
 
 ---
@@ -119,6 +120,8 @@ Kafka operates in lightweight **KRaft mode** (without Zookeeper dependency) to s
 | `socialflow-user-service` | User & Auth Service | `8081` | `8081` |
 | `socialflow-post-service` | Post Service | `8082` | `8082` |
 | `socialflow-feed-service` | Feed & Search Service | `8083` | `8083` |
+| `socialflow-media-service`| Media & Upload Service | `8084` | `8084` |
+| `socialflow-minio`        | MinIO Object Storage (S3) | `9000` / `9001` | `9000` / `9001` |
 | `socialflow-postgres` | PostgreSQL Database | `5432` | `5435` |
 | `socialflow-kafka` | Apache Kafka Broker | `9092` / `29092` | `9095` |
 | `socialflow-elasticsearch`| Elasticsearch Search Engine | `9200` | `9205` |

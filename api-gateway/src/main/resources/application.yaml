@@ -1,5 +1,5 @@
 server:
-  port: 8088 # 👈 פורט חדש ופנוי לשער הכניסה
+  port: 8088 # פורט שער הכניסה (API Gateway)
 
 spring:
   application:
@@ -36,16 +36,34 @@ spring:
         - id: post-service
           uri: ${POST_SERVICE_URI:http://localhost:8082}
           predicates:
-            - Path=/api/v1/posts/**, /api/posts/**
+            - Path=/api/v1/posts/**,/api/posts/**
 
         # 3. Feed Service (8083)
         - id: feed-service
           uri: ${FEED_SERVICE_URI:http://localhost:8083}
           predicates:
-            - Path=/api/v1/feed/**, /api/feed/**
+            - Path=/api/v1/feed/**,/api/feed/**
 
         # 4. Search Service (8083)
         - id: feed-service-search
           uri: ${FEED_SERVICE_URI:http://localhost:8083}
           predicates:
-            - Path=/api/v1/search/**, /api/search/**
+            - Path=/api/v1/search/**,/api/search/**
+
+        # 5. Media Service (8084) - העלאת קבצים ו-S3
+        - id: media-service
+          uri: ${MEDIA_SERVICE_URI:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/media/**
+
+        # 6. Notification Service (8085) - REST
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URI:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/notifications/**
+
+        # 7. Notification Service (8085) - WebSocket / SockJS
+        - id: notification-service-ws
+          uri: ${NOTIFICATION_SERVICE_WS_URI:${NOTIFICATION_SERVICE_URI:http://localhost:8085}}
+          predicates:
+            - Path=/ws/**

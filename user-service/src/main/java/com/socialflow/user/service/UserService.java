@@ -68,7 +68,7 @@ public class UserService {
             followerRepository.save(follower);
 
             // שידור אירוע מעקב ל-Kafka
-            eventProducer.emitUserFollowed(new UserFollowedEvent(currentUser.getId(), targetUserId, true));
+            eventProducer.emitUserFollowed(new UserFollowedEvent(currentUser.getId(), currentUser.getUsername(), targetUserId, true));
         }
     }
 

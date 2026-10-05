@@ -1,0 +1,18 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: media-service
+
+aws:
+  s3:
+    endpoint: ${AWS_S3_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${AWS_S3_PUBLIC_ENDPOINT:http://localhost:9000}
+    bucket: ${AWS_S3_BUCKET:socialflow-media}
+    region: ${AWS_REGION:us-east-1}
+    access-key-id: ${AWS_ACCESS_KEY_ID:minioadmin}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:minioadminpassword}
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}

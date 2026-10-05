@@ -14,5 +14,7 @@
         <module>api-gateway</module>
         <module>post-service</module>
         <module>feed-service</module>
+        <module>media-service</module>
+        <module>notification-service</module>
     </modules>
 </project>

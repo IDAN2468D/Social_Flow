@@ -48,6 +48,15 @@ const state = {
   searchDebounceTimer: null
 };
 
+// Notifications State
+const notificationsState = {
+  items: [],
+  unreadCount: 0,
+  stompClient: null,
+  isConnected: false,
+  pollTimer: null
+};
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
   initUser();
@@ -55,6 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadTrendingTags();
   loadFeed();
   checkServicesHealth();
+  initNotificationsWebSocket();
+  fetchNotifications();
+  fetchUnreadNotificationsCount();
 });
 
 // ============================================================================
@@ -67,11 +79,10 @@ function initUser() {
     try {
       state.currentUser = JSON.parse(saved);
     } catch (e) {
-      state.currentUser = { ...CONFIG.DEFAULT_USER };
+      state.currentUser = null;
     }
   } else {
-    state.currentUser = { ...CONFIG.DEFAULT_USER };
-    saveUser(state.currentUser);
+    state.currentUser = null;
   }
 
   renderAuthSection();
@@ -84,14 +95,32 @@ function saveUser(user) {
   localStorage.setItem('socialflow_user', JSON.stringify(user));
 }
 
+function handleLogout() {
+  localStorage.removeItem('socialflow_user');
+  state.currentUser = null;
+  renderAuthSection();
+  renderQuickUsers();
+  updateComposerAvatar();
+
+  if (notificationsState.stompClient) {
+    try { notificationsState.stompClient.disconnect(); } catch (e) {}
+  }
+  notificationsState.items = [];
+  notificationsState.unreadCount = 0;
+  updateNotificationBadges();
+  renderNotificationsList();
+
+  showToast('התנתקת מהמערכת בהצלחה', 'info');
+}
+
 function getAuthHeaders() {
   const headers = {
     'Content-Type': 'application/json',
-    'X-Auth-UserId': String(state.currentUser.userId || 1),
-    'X-Auth-Username': state.currentUser.username || 'idan'
+    'X-Auth-UserId': String(state.currentUser?.userId || 1),
+    'X-Auth-Username': state.currentUser?.username || 'idan'
   };
 
-  if (state.currentUser.token) {
+  if (state.currentUser?.token) {
     headers['Authorization'] = `Bearer ${state.currentUser.token}`;
   }
 
@@ -100,14 +129,22 @@ function getAuthHeaders() {
 
 function switchUser(userObj) {
   state.currentUser = {
-    ...state.currentUser,
-    ...userObj
+    userId: userObj.userId,
+    username: userObj.username,
+    fullName: userObj.fullName,
+    email: `${userObj.username}@example.com`,
+    token: ''
   };
   saveUser(state.currentUser);
   renderAuthSection();
   renderQuickUsers();
   updateComposerAvatar();
   showToast(`הוחלף משתמש אל @${userObj.username}`, 'info');
+
+  initNotificationsWebSocket();
+  fetchNotifications();
+  fetchUnreadNotificationsCount();
+
   loadFeed();
 }
 
@@ -115,19 +152,35 @@ function renderAuthSection() {
   const authSection = document.getElementById('auth-section');
   if (!authSection) return;
 
-  const user = state.currentUser;
-  const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`;
+  if (state.currentUser && state.currentUser.username) {
+    const user = state.currentUser;
+    const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`;
 
-  authSection.innerHTML = `
-    <div class="user-profile-badge" id="btn-user-profile" title="לחץ לשינוי הגדרות חשבון">
-      <img src="${avatarUrl}" alt="${user.username}" class="user-badge-avatar">
-      <span class="user-badge-name">@${user.username}</span>
-    </div>
-  `;
+    authSection.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="user-profile-badge" id="btn-user-profile" title="משתמש מחובר: @${user.username}">
+          <img src="${avatarUrl}" alt="${user.username}" class="user-badge-avatar">
+          <span class="user-badge-name">@${user.username}</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="btn-logout" title="התנתק מהחשבון" style="border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); cursor: pointer;">
+          <span>🚪</span> התנתק
+        </button>
+      </div>
+    `;
 
-  document.getElementById('btn-user-profile')?.addEventListener('click', () => {
-    openAuthModal('login');
-  });
+    document.getElementById('btn-logout')?.addEventListener('click', handleLogout);
+  } else {
+    authSection.innerHTML = `
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <a href="login.html" class="btn btn-secondary btn-sm" style="border-radius: 8px; padding: 6px 14px; font-weight: 600; text-decoration: none;">
+          <span>🔑</span> התחברות
+        </a>
+        <a href="register.html" class="btn btn-primary btn-sm" style="border-radius: 8px; padding: 6px 14px; font-weight: 600; text-decoration: none;">
+          <span>✨</span> הרשמה
+        </a>
+      </div>
+    `;
+  }
 }
 
 function renderQuickUsers() {
@@ -189,6 +242,10 @@ function setupEventListeners() {
   // Post Composer Buttons
   document.getElementById('btn-publish-post')?.addEventListener('click', handlePublishPost);
   document.getElementById('btn-toggle-media')?.addEventListener('click', toggleMediaInput);
+  document.getElementById('btn-trigger-upload')?.addEventListener('click', () => {
+    document.getElementById('media-file-input')?.click();
+  });
+  document.getElementById('media-file-input')?.addEventListener('change', handleMediaFileUpload);
   document.getElementById('btn-confirm-media')?.addEventListener('click', confirmMediaUrl);
   document.getElementById('btn-remove-media')?.addEventListener('click', removeMedia);
   document.getElementById('btn-toggle-poll')?.addEventListener('click', togglePollBuilder);
@@ -221,19 +278,30 @@ function setupEventListeners() {
   document.getElementById('btn-close-diagnostics')?.addEventListener('click', closeDiagnosticsModal);
   document.getElementById('btn-retest-diagnostics')?.addEventListener('click', runFullDiagnostics);
 
-  // Auth Modal
-  document.getElementById('btn-close-auth-modal')?.addEventListener('click', closeAuthModal);
-  document.getElementById('modal-tab-login')?.addEventListener('click', () => switchAuthTab('login'));
-  document.getElementById('modal-tab-register')?.addEventListener('click', () => switchAuthTab('register'));
-  document.getElementById('login-form')?.addEventListener('submit', handleLoginSubmit);
-  document.getElementById('register-form')?.addEventListener('submit', handleRegisterSubmit);
-
-  // Quick fill buttons in auth modal
-  document.querySelectorAll('.fill-login-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('login-username').value = btn.dataset.user;
-      document.getElementById('login-password').value = btn.dataset.pass;
+  // Notification Bell Toggle & Dropdown Handlers
+  const notifToggle = document.getElementById('btn-notifications-toggle');
+  const notifDropdown = document.getElementById('notifications-dropdown');
+  if (notifToggle && notifDropdown) {
+    notifToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifDropdown.classList.toggle('hidden');
+      if (!notifDropdown.classList.contains('hidden')) {
+        fetchNotifications();
+        fetchUnreadNotificationsCount();
+      }
     });
+
+    document.addEventListener('click', (e) => {
+      if (!notifDropdown.contains(e.target) && !notifToggle.contains(e.target)) {
+        notifDropdown.classList.add('hidden');
+      }
+    });
+  }
+
+  // Mark all read button in dropdown
+  document.getElementById('btn-mark-all-read')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    markAllNotificationsAsRead();
   });
 }
 
@@ -249,6 +317,7 @@ function updateFeedHeading() {
   const titles = {
     'for-you': 'פיד בשבילך (For You)',
     'following': 'פוסטים מנעקבים (Following)',
+    'notifications': 'התראות ואירועים חיים (Notifications)',
     'trending': 'טרנדים פופולריים',
     'bookmarks': 'הסימניות שלי'
   };
@@ -273,6 +342,11 @@ async function loadFeed() {
   `;
 
   if (countBadge) countBadge.textContent = 'טוען...';
+
+  if (state.activeTab === 'notifications') {
+    renderNotificationsFeedPage(container, countBadge);
+    return;
+  }
 
   try {
     let url = '';
@@ -591,6 +665,10 @@ function attachPostInteractions(post) {
   // Poll Vote options
   postCard.querySelectorAll('.poll-option-row').forEach(row => {
     row.addEventListener('click', async () => {
+      if (!state.currentUser) {
+        showToast('עליך להתחבר למערכת כדי להצביע בסקר', 'error');
+        return;
+      }
       const optId = row.dataset.optionId;
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/v1/posts/${postId}/poll/vote?optionId=${optId}`, {
@@ -624,6 +702,10 @@ function attachPostInteractions(post) {
 // ============================================================================
 
 async function submitReaction(postId, reactionType) {
+  if (!state.currentUser) {
+    showToast('עליך להתחבר כדי לסמן תגובה (Reaction)', 'error');
+    return;
+  }
   try {
     const res = await fetch(`${CONFIG.API_BASE}/api/v1/posts/${postId}/reactions`, {
       method: 'POST',
@@ -700,6 +782,11 @@ async function loadComments(postId) {
 }
 
 async function handleAddComment(postId) {
+  if (!state.currentUser) {
+    showToast('עליך להתחבר כדי להגיב לפוסט!', 'error');
+    setTimeout(() => { window.location.href = 'login.html'; }, 700);
+    return;
+  }
   const input = document.getElementById(`comment-input-${postId}`);
   if (!input) return;
 
@@ -728,6 +815,11 @@ async function handleAddComment(postId) {
 // ============================================================================
 
 async function handlePublishPost() {
+  if (!state.currentUser) {
+    showToast('עליך להתחבר כדי לפרסם פוסט!', 'error');
+    setTimeout(() => { window.location.href = 'login.html'; }, 700);
+    return;
+  }
   const contentInput = document.getElementById('composer-content');
   const publishBtn = document.getElementById('btn-publish-post');
   const spinner = publishBtn?.querySelector('.spinner');
@@ -843,6 +935,84 @@ function removeMedia() {
   const img = document.getElementById('preview-image');
   if (img) img.src = '';
   preview?.classList.add('hidden');
+}
+
+async function handleMediaFileUpload(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!validTypes.includes(file.type)) {
+    showToast('קובץ לא נתמך. נא לבחור תמונה מסוג JPG, PNG, WEBP או GIF', 'error');
+    e.target.value = '';
+    return;
+  }
+
+  const spinner = document.getElementById('media-upload-spinner');
+  const uploadBtn = document.getElementById('btn-trigger-upload');
+  const preview = document.getElementById('composer-media-preview');
+  const img = document.getElementById('preview-image');
+
+  try {
+    spinner?.classList.remove('hidden');
+    if (uploadBtn) uploadBtn.disabled = true;
+    showToast('מייצר כתובת העלאה מאובטחת...', 'info');
+
+    // 1. Request presigned URL from Media Service through API Gateway
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Auth-UserId': String(state.currentUser?.userId || 1),
+      'X-Auth-Username': state.currentUser?.username || 'idan'
+    };
+    if (state.currentUser?.token) {
+      headers['Authorization'] = `Bearer ${state.currentUser.token}`;
+    }
+
+    const res = await fetch(`${CONFIG.API_BASE}/api/v1/media/upload-url`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        filename: file.name,
+        contentType: file.type
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`שגיאה בהנפקת כתובת העלאה: ${res.status}`);
+    }
+
+    const { uploadUrl, accessUrl } = await res.json();
+    showToast('מעלה את הקובץ לשרת האחסון (MinIO S3)...', 'info');
+
+    // 2. Upload file directly to S3 / MinIO via presigned PUT
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type
+      },
+      body: file
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error(`שגיאה בהעלאה ל-S3 (${uploadRes.status})`);
+    }
+
+    // 3. Attach image to composer preview
+    if (img && preview) {
+      img.src = accessUrl;
+      preview.classList.remove('hidden');
+    }
+    document.getElementById('media-url-input-wrap')?.classList.add('hidden');
+    showToast('התמונה הועלתה בהצלחה ל-S3 / MinIO!', 'success');
+  } catch (err) {
+    console.error('Media upload error:', err);
+    showToast(`העלאת תמונה נכשלה: ${err.message}`, 'error');
+  } finally {
+    spinner?.classList.add('hidden');
+    if (uploadBtn) uploadBtn.disabled = false;
+    e.target.value = '';
+  }
 }
 
 // Poll builder helpers
@@ -1033,9 +1203,11 @@ async function runFullDiagnostics() {
 
   const checks = [
     { name: 'API Gateway (8088)', url: `${CONFIG.API_BASE}/api/v1/feed/trending-tags` },
+    { name: 'Media Service & S3 (8084)', url: `${CONFIG.API_BASE}/api/v1/media/health` },
     { name: 'Post Service (8082)', url: `${CONFIG.API_BASE}/api/v1/posts/1` },
     { name: 'Feed Service (8083)', url: `${CONFIG.API_BASE}/api/v1/feed/for-you?userId=1` },
     { name: 'User Service (8081)', url: `${CONFIG.API_BASE}/api/users/1/following-ids` },
+    { name: 'Notification Service (8085)', url: `${CONFIG.API_BASE}/api/v1/notifications/unread-count` },
     { name: 'Elasticsearch (ES Index)', url: `${CONFIG.API_BASE}/api/v1/search?query=socialflow` }
   ];
 
@@ -1069,111 +1241,7 @@ async function runFullDiagnostics() {
   `).join('');
 }
 
-// ============================================================================
-// Auth Modal (Login / Register)
-// ============================================================================
 
-function openAuthModal(tab = 'login') {
-  document.getElementById('auth-modal')?.classList.remove('hidden');
-  switchAuthTab(tab);
-}
-
-function closeAuthModal() {
-  document.getElementById('auth-modal')?.classList.add('hidden');
-}
-
-function switchAuthTab(tab) {
-  const loginBtn = document.getElementById('modal-tab-login');
-  const regBtn = document.getElementById('modal-tab-register');
-  const loginForm = document.getElementById('login-form');
-  const regForm = document.getElementById('register-form');
-
-  if (tab === 'login') {
-    loginBtn?.classList.add('active');
-    regBtn?.classList.remove('active');
-    loginForm?.classList.remove('hidden');
-    regForm?.classList.add('hidden');
-  } else {
-    regBtn?.classList.add('active');
-    loginBtn?.classList.remove('active');
-    regForm?.classList.remove('hidden');
-    loginForm?.classList.add('hidden');
-  }
-}
-
-async function handleLoginSubmit(e) {
-  e.preventDefault();
-  const username = document.getElementById('login-username').value.trim();
-  const password = document.getElementById('login-password').value.trim();
-
-  try {
-    const res = await fetch(`${CONFIG.API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'שם משתמש או סיסמה שגויים');
-    }
-
-    const data = await res.json();
-    saveUser({
-      userId: data.userId || 1,
-      username: data.username || username,
-      email: data.email || `${username}@example.com`,
-      token: data.token || ''
-    });
-
-    showToast(`ברוך הבא, @${data.username}!`, 'success');
-    closeAuthModal();
-    renderAuthSection();
-    renderQuickUsers();
-    updateComposerAvatar();
-    loadFeed();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-async function handleRegisterSubmit(e) {
-  e.preventDefault();
-  const username = document.getElementById('reg-username').value.trim();
-  const fullName = document.getElementById('reg-fullname').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
-  const password = document.getElementById('reg-password').value.trim();
-
-  try {
-    const res = await fetch(`${CONFIG.API_BASE}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, fullName, email, password })
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'שגיאה ביצירת משתמש');
-    }
-
-    const data = await res.json();
-    saveUser({
-      userId: data.userId || Date.now(),
-      username: data.username || username,
-      email: data.email || email,
-      token: data.token || ''
-    });
-
-    showToast(`נרשמת בהצלחה! שלום @${username}`, 'success');
-    closeAuthModal();
-    renderAuthSection();
-    renderQuickUsers();
-    updateComposerAvatar();
-    loadFeed();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
 
 // ============================================================================
 // Utilities & Toast Helpers
@@ -1237,6 +1305,287 @@ function formatTimestamp(isoString) {
     if (diffSec < 3600) return `לפני ${Math.floor(diffSec / 60)} דק'`;
     if (diffSec < 86400) return `לפני ${Math.floor(diffSec / 3600)} שעות`;
     return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+  } catch (e) {
+    return 'לאחרונה';
+  }
+}
+
+// ============================================================================
+// Real-Time Notifications & WebSocket Management
+// ============================================================================
+
+function initNotificationsWebSocket() {
+  if (notificationsState.stompClient && notificationsState.isConnected) {
+    try {
+      notificationsState.stompClient.disconnect();
+    } catch (e) {}
+  }
+
+  const userId = state.currentUser ? state.currentUser.userId : 1;
+  const wsStatusEl = document.getElementById('ws-status-indicator');
+
+  // Attempt STOMP over SockJS
+  if (typeof SockJS !== 'undefined' && typeof Stomp !== 'undefined') {
+    try {
+      const endpoint = `${CONFIG.API_BASE}/ws/notifications`;
+      const socket = new SockJS(endpoint);
+      const stompClient = Stomp.over(socket);
+      stompClient.debug = null; // Quiet console logging
+
+      stompClient.connect({}, (frame) => {
+        notificationsState.isConnected = true;
+        notificationsState.stompClient = stompClient;
+        if (wsStatusEl) {
+          wsStatusEl.className = 'ws-status-pill ws-connected';
+          const textEl = wsStatusEl.querySelector('.ws-status-text');
+          if (textEl) textEl.textContent = 'חי';
+          wsStatusEl.title = 'מחובר ב-WebSocket בזמן אמת';
+        }
+
+        // Subscribe to user private channel
+        const topic = `/topic/user.${userId}.notifications`;
+        stompClient.subscribe(topic, (message) => {
+          try {
+            const notif = JSON.parse(message.body);
+            handleIncomingNotification(notif);
+          } catch (err) {
+            console.error('Failed to parse incoming notification:', err);
+          }
+        });
+      }, (error) => {
+        notificationsState.isConnected = false;
+        if (wsStatusEl) {
+          wsStatusEl.className = 'ws-status-pill ws-disconnected';
+          const textEl = wsStatusEl.querySelector('.ws-status-text');
+          if (textEl) textEl.textContent = 'ריענון';
+          wsStatusEl.title = 'חיבור WebSocket במצב המתנה - פעיל בריענון אוטומטי';
+        }
+      });
+    } catch (e) {
+      console.warn('WebSocket connection attempt failed, using polling fallback', e);
+    }
+  }
+
+  // Polling fallback
+  if (!notificationsState.pollTimer) {
+    notificationsState.pollTimer = setInterval(() => {
+      fetchUnreadNotificationsCount();
+    }, 10000);
+  }
+}
+
+function handleIncomingNotification(notif) {
+  // Prepend to notifications list
+  notificationsState.items.unshift(notif);
+  notificationsState.unreadCount++;
+  updateNotificationBadges();
+  renderNotificationsList();
+
+  // Show Toast
+  const emoji = getNotificationEmoji(notif.type);
+  showToast(`${emoji} ${notif.message}`, 'info');
+
+  // If on notifications tab, refresh page view
+  if (state.activeTab === 'notifications') {
+    loadFeed();
+  }
+}
+
+async function fetchNotifications() {
+  try {
+    const res = await fetch(`${CONFIG.API_BASE}/api/v1/notifications`, {
+      method: 'GET',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      notificationsState.items = Array.isArray(data) ? data : [];
+      const unread = notificationsState.items.filter(n => !n.isRead).length;
+      notificationsState.unreadCount = unread;
+      updateNotificationBadges();
+      renderNotificationsList();
+    }
+  } catch (e) {
+    console.error('Error fetching notifications:', e);
+  }
+}
+
+async function fetchUnreadNotificationsCount() {
+  try {
+    const res = await fetch(`${CONFIG.API_BASE}/api/v1/notifications/unread-count`, {
+      method: 'GET',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      notificationsState.unreadCount = typeof data.unreadCount === 'number' ? data.unreadCount : 0;
+      updateNotificationBadges();
+    }
+  } catch (e) {
+    // Ignore polling failures
+  }
+}
+
+async function markNotificationAsRead(id, e) {
+  if (e) e.stopPropagation();
+  try {
+    const res = await fetch(`${CONFIG.API_BASE}/api/v1/notifications/${id}/read`, {
+      method: 'PATCH',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      const idx = notificationsState.items.findIndex(n => n.id === id);
+      if (idx !== -1) {
+        notificationsState.items[idx].isRead = true;
+      }
+      notificationsState.unreadCount = Math.max(0, notificationsState.unreadCount - 1);
+      updateNotificationBadges();
+      renderNotificationsList();
+      if (state.activeTab === 'notifications') {
+        loadFeed();
+      }
+    }
+  } catch (e) {
+    console.error('Error marking notification as read:', e);
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    const res = await fetch(`${CONFIG.API_BASE}/api/v1/notifications/read-all`, {
+      method: 'PATCH',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      notificationsState.items.forEach(n => n.isRead = true);
+      notificationsState.unreadCount = 0;
+      updateNotificationBadges();
+      renderNotificationsList();
+      if (state.activeTab === 'notifications') {
+        loadFeed();
+      }
+      showToast('כל ההתראות סומנו כנקראו', 'success');
+    }
+  } catch (e) {
+    console.error('Error marking all notifications as read:', e);
+  }
+}
+
+function renderNotificationsList() {
+  const listEl = document.getElementById('notifications-list');
+  if (!listEl) return;
+
+  if (notificationsState.items.length === 0) {
+    listEl.innerHTML = `
+      <div class="notifications-empty">
+        <span class="notifications-empty-icon">🔕</span>
+        <span class="notifications-empty-text">אין התראות חדשות</span>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = notificationsState.items.slice(0, 20).map(notif => `
+    <div class="notification-item ${!notif.isRead ? 'unread' : ''}" onclick="markNotificationAsRead(${notif.id}, event)">
+      <div class="notif-badge-icon notif-icon-${notif.type || 'LIKE'}">
+        ${getNotificationEmoji(notif.type)}
+      </div>
+      <div class="notif-content-wrap">
+        <span class="notif-message">${escapeHtml(notif.message)}</span>
+        <span class="notif-time">${formatNotificationTime(notif.createdAt)}</span>
+      </div>
+      ${!notif.isRead ? '<span class="unread-dot" title="לא נקרא"></span>' : ''}
+    </div>
+  `).join('');
+}
+
+async function renderNotificationsFeedPage(container, countBadge) {
+  if (notificationsState.items.length === 0) {
+    await fetchNotifications();
+  }
+
+  if (countBadge) countBadge.textContent = `${notificationsState.items.length} התראות`;
+
+  if (notificationsState.items.length === 0) {
+    container.innerHTML = `
+      <div class="card glass-card empty-feed-card" style="text-align: center; padding: 48px 24px;">
+        <div style="font-size: 3rem; margin-bottom: 12px;">🔔</div>
+        <h3 style="font-size: 1.2rem; color: var(--text-primary); margin-bottom: 8px;">אין לך התראות כרגע</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">כאשר משתמשים יגיבו, יעשו לייק או יעקבו אחריך, תראה את ההתראות כאן בזמן אמת!</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 0 4px;">
+      <span style="font-size: 0.9rem; color: var(--text-secondary);">כל ההתראות והאירועים האחרונים של חשבונך</span>
+      <button class="btn btn-secondary btn-sm" onclick="markAllNotificationsAsRead()">✓ סמן הכל כנקרא</button>
+    </div>
+    <div class="notifications-feed-list">
+      ${notificationsState.items.map(notif => `
+        <div class="notifications-feed-card ${!notif.isRead ? 'unread' : ''}" onclick="markNotificationAsRead(${notif.id}, event)">
+          <div class="notif-badge-icon notif-icon-${notif.type || 'LIKE'}">
+            ${getNotificationEmoji(notif.type)}
+          </div>
+          <div class="notif-content-wrap">
+            <span class="notif-message">${escapeHtml(notif.message)}</span>
+            <span class="notif-time">${formatNotificationTime(notif.createdAt)}</span>
+          </div>
+          ${!notif.isRead ? '<span class="unread-dot" title="לא נקרא"></span>' : '<span style="color: var(--text-muted); font-size: 0.8rem;">נקרא</span>'}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function updateNotificationBadges() {
+  const count = notificationsState.unreadCount;
+  const bellBadge = document.getElementById('unread-notifications-count');
+  const sidebarBadge = document.getElementById('sidebar-unread-badge');
+
+  if (bellBadge) {
+    if (count > 0) {
+      bellBadge.textContent = count > 99 ? '99+' : count;
+      bellBadge.classList.remove('hidden');
+    } else {
+      bellBadge.classList.add('hidden');
+    }
+  }
+
+  if (sidebarBadge) {
+    if (count > 0) {
+      sidebarBadge.textContent = count > 99 ? '99+' : count;
+      sidebarBadge.classList.remove('hidden');
+    } else {
+      sidebarBadge.classList.add('hidden');
+    }
+  }
+}
+
+function getNotificationEmoji(type) {
+  switch (type) {
+    case 'LIKE': return '❤️';
+    case 'COMMENT': return '💬';
+    case 'FOLLOW': return '👤';
+    default: return '🔔';
+  }
+}
+
+function formatNotificationTime(timestamp) {
+  if (!timestamp) return 'הרגע';
+  try {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffSec = Math.floor((now - date) / 1000);
+    if (diffSec < 60) return 'לפני מספר שניות';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `לפני ${diffMin} דקות`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `לפני ${diffHour} שעות`;
+    const diffDays = Math.floor(diffHour / 24);
+    return `לפני ${diffDays} ימים`;
   } catch (e) {
     return 'לאחרונה';
   }

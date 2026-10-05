@@ -40,6 +40,19 @@ public class JwtAuthenticationFilter implements Filter {
             return;
         }
 
+        final String gatewayUsername = request.getHeader("X-Auth-Username");
+        if (gatewayUsername != null && !gatewayUsername.isEmpty() && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    gatewayUsername,
+                    null,
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+            );
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         final String authHeader = request.getHeader("Authorization");
 
         // אם אין טוקן ב-Header - ממשיכים הלאה

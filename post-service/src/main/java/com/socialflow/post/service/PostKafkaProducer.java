@@ -1,6 +1,7 @@
 package com.socialflow.post.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.socialflow.post.event.CommentCreatedEvent;
 import com.socialflow.post.event.PostCreatedEvent;
 import com.socialflow.post.event.PostDeletedEvent;
 import com.socialflow.post.event.PostLikedEvent;
@@ -26,6 +27,10 @@ public class PostKafkaProducer {
 
     public void emitPostLiked(PostLikedEvent event) {
         sendEvent("POST_LIKED", event.getPostId().toString(), event);
+    }
+
+    public void emitCommentCreated(CommentCreatedEvent event) {
+        sendEvent("COMMENT_CREATED", event.getPostId().toString(), event);
     }
 
     public void emitPostReposted(PostRepostedEvent event) {
