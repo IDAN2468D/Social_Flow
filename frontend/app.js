@@ -1590,3 +1590,170 @@ function formatNotificationTime(timestamp) {
     return 'לאחרונה';
   }
 }
+
+/* =========================================================================
+   SocialFlow Modern UI Handlers: Stories, AI Assist, Messenger & Follow
+   ========================================================================= */
+
+document.addEventListener('DOMContentLoaded', () => {
+  initSocialShowcaseFeatures();
+});
+
+let storyTimer = null;
+
+function initSocialShowcaseFeatures() {
+  // 1. AI Enhance Button (Gemini 3.5 Flash-Lite)
+  const aiBtn = document.getElementById('btn-ai-enhance');
+  if (aiBtn) {
+    aiBtn.addEventListener('click', async () => {
+      const textarea = document.getElementById('composer-content');
+      const text = textarea?.value?.trim();
+      if (!text) {
+        showToast('כתוב תחילה טיוטה של פוסט לפני השיפור עם AI', 'info');
+        return;
+      }
+
+      aiBtn.disabled = true;
+      aiBtn.innerHTML = '<span>⏳</span> <span>משפר עם Gemini...</span>';
+
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/v1/ai/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          let tags = '';
+          if (data.suggested_tags && Array.isArray(data.suggested_tags)) {
+            tags = ' ' + data.suggested_tags.map(t => t.startsWith('#') ? t : `#${t}`).join(' ');
+          }
+          textarea.value = text + '\n\n' + tags.trim();
+          showToast('הפוסט שופר בהצלחה והתווספו האשטאגים מותאמים! ✨', 'success');
+        } else {
+          showToast('לא ניתן היה לעבד עם שירות ה-AI כעת', 'info');
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('שגיאה בחיבור ל-ai-service', 'error');
+      } finally {
+        aiBtn.disabled = false;
+        aiBtn.innerHTML = '<span>✨</span> <span>שפר עם AI</span>';
+      }
+    });
+  }
+
+  // 2. Stories Viewer Interaction
+  const storyItems = document.querySelectorAll('.story-item:not(.create-story)');
+  const storyModal = document.getElementById('story-modal');
+  const btnCloseStory = document.getElementById('btn-close-story');
+  const progressFill = document.getElementById('story-progress-fill');
+
+  storyItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const name = item.dataset.name || 'משתמש';
+      const img = item.dataset.img || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
+      const avatar = item.querySelector('.story-avatar')?.src || '';
+
+      document.getElementById('story-viewer-name').textContent = name;
+      document.getElementById('story-viewer-avatar').src = avatar;
+      document.getElementById('story-viewer-img').src = img;
+
+      storyModal?.classList.remove('hidden');
+      item.querySelector('.story-avatar-wrapper')?.classList.remove('unread');
+
+      if (progressFill) {
+        progressFill.style.width = '0%';
+        setTimeout(() => { progressFill.style.width = '100%'; }, 50);
+      }
+
+      clearTimeout(storyTimer);
+      storyTimer = setTimeout(() => {
+        closeStory();
+      }, 5000);
+    });
+  });
+
+  btnCloseStory?.addEventListener('click', closeStory);
+  storyModal?.addEventListener('click', (e) => {
+    if (e.target === storyModal) closeStory();
+  });
+
+  function closeStory() {
+    clearTimeout(storyTimer);
+    storyModal?.classList.add('hidden');
+    if (progressFill) progressFill.style.width = '0%';
+  }
+
+  // 3. Messenger Drawer Interaction
+  const btnMessenger = document.getElementById('btn-open-messenger');
+  const messengerDrawer = document.getElementById('messenger-drawer');
+  const btnCloseMessenger = document.getElementById('btn-close-messenger');
+  const messengerInput = document.getElementById('messenger-input');
+  const btnSendMessage = document.getElementById('btn-send-message');
+  const messengerBody = document.getElementById('messenger-body');
+
+  btnMessenger?.addEventListener('click', () => {
+    messengerDrawer?.classList.toggle('hidden');
+    messengerInput?.focus();
+  });
+
+  btnCloseMessenger?.addEventListener('click', () => {
+    messengerDrawer?.classList.add('hidden');
+  });
+
+  function sendChatMessage() {
+    const text = messengerInput?.value?.trim();
+    if (!text) return;
+
+    const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble outgoing';
+    bubble.innerHTML = `<span>${escapeHtml(text)}</span><span class="bubble-time">${time}</span>`;
+    messengerBody?.appendChild(bubble);
+    messengerInput.value = '';
+    messengerBody.scrollTop = messengerBody.scrollHeight;
+
+    // Simulate smart quick reply after 1s
+    setTimeout(() => {
+      const replyBubble = document.createElement('div');
+      replyBubble.className = 'chat-bubble incoming';
+      replyBubble.innerHTML = `<span>אחלה רעיון! תודה על העדכון 👍</span><span class="bubble-time">${time}</span>`;
+      messengerBody?.appendChild(replyBubble);
+      messengerBody.scrollTop = messengerBody.scrollHeight;
+    }, 1200);
+  }
+
+  btnSendMessage?.addEventListener('click', sendChatMessage);
+  messengerInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+  });
+
+  // 4. Follow buttons on suggestions
+  document.querySelectorAll('.btn-follow-toggle').forEach(btn => {
+    btn.addEventListener('click', function() {
+      if (this.classList.contains('following')) {
+        this.classList.remove('following');
+        this.textContent = 'עקוב';
+      } else {
+        this.classList.add('following');
+        this.textContent = 'עוקב ✓';
+        showToast('נוסף לרשימת הנעקבים שלך!', 'success');
+      }
+    });
+  });
+
+  // 5. Brand click returns to For-You feed
+  document.getElementById('nav-brand-logo')?.addEventListener('click', () => {
+    document.getElementById('nav-for-you')?.click();
+  });
+}
+
+window.openChatWith = function(name, avatar) {
+  const drawer = document.getElementById('messenger-drawer');
+  document.getElementById('chat-active-name').textContent = name;
+  document.getElementById('chat-active-avatar').src = avatar;
+  drawer?.classList.remove('hidden');
+  document.getElementById('messenger-input')?.focus();
+};
