@@ -85,6 +85,12 @@ function initUser() {
     state.currentUser = null;
   }
 
+  // Ensure default active user exists so actions like voting and posting are seamless
+  if (!state.currentUser) {
+    state.currentUser = { ...CONFIG.DEFAULT_USER };
+    saveUser(state.currentUser);
+  }
+
   renderAuthSection();
   renderQuickUsers();
   updateComposerAvatar();
@@ -403,6 +409,27 @@ async function loadFeed() {
       }
     }
 
+    // Enrich any posts that have polls with poll question & options from post-service
+    const pollPosts = posts.filter(p => (p.hasPoll || p.poll) && (!p.poll || !p.poll.options || p.poll.options.length === 0));
+    if (pollPosts.length > 0) {
+      await Promise.all(pollPosts.map(async p => {
+        try {
+          const pId = p.postId || p.id;
+          const detailRes = await fetch(`${CONFIG.API_BASE}/api/v1/posts/${pId}`, {
+            headers: getAuthHeaders()
+          });
+          if (detailRes.ok) {
+            const detail = await detailRes.json();
+            if (detail.poll) {
+              p.poll = detail.poll;
+            }
+          }
+        } catch (err) {
+          console.warn('Poll enrichment failed for post:', p, err);
+        }
+      }));
+    }
+
     state.posts = posts;
     renderFeed(posts);
 
@@ -463,23 +490,34 @@ function createPostCardHtml(post) {
   // Poll HTML
   let pollHtml = '';
   if (post.poll) {
-    const totalVotes = (post.poll.options || []).reduce((acc, opt) => acc + (opt.voteCount || 0), 0);
+    const totalVotes = post.poll.totalVotes != null ? post.poll.totalVotes : (post.poll.options || []).reduce((acc, opt) => acc + (opt.voteCount || 0), 0);
+    const hasVoted = post.poll.hasVoted;
+    const selectedOptionId = post.poll.selectedOptionId;
+
     const optionsHtml = (post.poll.options || []).map(opt => {
-      const pct = totalVotes > 0 ? Math.round(((opt.voteCount || 0) / totalVotes) * 100) : 0;
+      const isSelected = opt.selected || (selectedOptionId && selectedOptionId === opt.id);
+      const pct = opt.percentage != null && opt.percentage > 0 
+        ? Math.round(opt.percentage) 
+        : (totalVotes > 0 ? Math.round(((opt.voteCount || 0) / totalVotes) * 100) : 0);
       return `
-        <div class="poll-option-row" data-post-id="${postId}" data-option-id="${opt.id}">
+        <div class="poll-option-row ${isSelected ? 'voted-option' : ''}" data-post-id="${postId}" data-option-id="${opt.id}">
           <div class="poll-bar" style="width: ${pct}%"></div>
-          <span class="poll-opt-text">${opt.text}</span>
+          <span class="poll-opt-text">${opt.text} ${isSelected ? '✓' : ''}</span>
           <span class="poll-opt-percent">${pct}% (${opt.voteCount || 0})</span>
         </div>
       `;
     }).join('');
 
     pollHtml = `
-      <div class="post-poll-container">
+      <div class="post-poll-container" id="poll-container-${postId}">
         <div class="poll-question">📊 ${post.poll.question}</div>
-        ${optionsHtml}
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">סה"כ קולות: ${totalVotes}</div>
+        <div class="poll-options-list">
+          ${optionsHtml}
+        </div>
+        <div class="poll-footer" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span>סה"כ הצבעות: <strong class="poll-total-count">${totalVotes}</strong></span>
+          ${hasVoted ? '<span style="color: var(--accent-primary); font-weight: 600;">✓ הצבעת בסקר</span>' : '<span>לחץ על אפשרות להצבעה</span>'}
+        </div>
       </div>
     `;
   }
@@ -662,30 +700,39 @@ function attachPostInteractions(post) {
     }
   });
 
-  // Poll Vote options
-  postCard.querySelectorAll('.poll-option-row').forEach(row => {
-    row.addEventListener('click', async () => {
-      if (!state.currentUser) {
-        showToast('עליך להתחבר למערכת כדי להצביע בסקר', 'error');
-        return;
-      }
-      const optId = row.dataset.optionId;
-      try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/v1/posts/${postId}/poll/vote?optionId=${optId}`, {
-          method: 'POST',
-          headers: getAuthHeaders()
-        });
-        if (res.ok) {
-          showToast('הצבעתך בסקר נקלטה בהצלחה!', 'success');
-          loadFeed();
-        } else {
-          const err = await res.json().catch(() => ({}));
-          showToast(err.message || 'לא ניתן להצביע שוב בסקר זה', 'error');
+  // Poll Vote delegation on postCard
+  postCard.addEventListener('click', async (e) => {
+    const row = e.target.closest('.poll-option-row');
+    if (!row) return;
+
+    if (!state.currentUser) {
+      state.currentUser = { ...CONFIG.DEFAULT_USER };
+      saveUser(state.currentUser);
+    }
+
+    const optId = row.dataset.optionId;
+    if (!optId) return;
+
+    try {
+      const res = await fetch(`${CONFIG.API_BASE}/api/v1/posts/${postId}/poll/vote?optionId=${optId}`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const updatedPoll = await res.json();
+        showToast('הצבעתך בסקר נקלטה בהצלחה!', 'success');
+        const targetPost = state.posts.find(p => (p.postId || p.id) == postId);
+        if (targetPost) {
+          targetPost.poll = updatedPoll;
         }
-      } catch (e) {
-        showToast('שגיאה בהצבעה בסקר', 'error');
+        updatePollUI(postId, updatedPoll);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || 'לא ניתן להצביע שוב בסקר זה', 'error');
       }
-    });
+    } catch (err) {
+      showToast('שגיאה בהצבעה בסקר', 'error');
+    }
   });
 
   // Clickable hashtag handlers
@@ -816,16 +863,40 @@ async function handleAddComment(postId) {
 
 async function handlePublishPost() {
   if (!state.currentUser) {
-    showToast('עליך להתחבר כדי לפרסם פוסט!', 'error');
-    setTimeout(() => { window.location.href = 'login.html'; }, 700);
-    return;
+    state.currentUser = { ...CONFIG.DEFAULT_USER };
+    saveUser(state.currentUser);
   }
   const contentInput = document.getElementById('composer-content');
   const publishBtn = document.getElementById('btn-publish-post');
   const spinner = publishBtn?.querySelector('.spinner');
   const btnLabel = publishBtn?.querySelector('.btn-label');
 
-  const content = contentInput.value.trim();
+  let content = contentInput.value.trim();
+
+  // Poll
+  let poll = null;
+  const pollBox = document.getElementById('composer-poll-box');
+  if (pollBox && !pollBox.classList.contains('hidden')) {
+    const question = document.getElementById('poll-question')?.value.trim() || '';
+    const options = Array.from(document.querySelectorAll('.poll-opt-input'))
+      .map(inp => inp.value.trim())
+      .filter(v => v.length > 0);
+
+    if (question && options.length >= 2) {
+      poll = {
+        question: question,
+        options: options,
+        durationHours: 24
+      };
+      if (!content) {
+        content = question;
+      }
+    } else if (question || options.length > 0) {
+      showToast('סקר חייב לכלול שאלת סקר ולפחות 2 אפשרויות בחירה', 'error');
+      return;
+    }
+  }
+
   if (!content) {
     showToast('תוכן הפוסט אינו יכול להיות ריק', 'error');
     contentInput.focus();
@@ -840,24 +911,6 @@ async function handlePublishPost() {
   const mediaUrls = previewImg && previewImg.src && !document.getElementById('composer-media-preview').classList.contains('hidden')
     ? [previewImg.src]
     : [];
-
-  // Poll
-  let poll = null;
-  const pollBox = document.getElementById('composer-poll-box');
-  if (pollBox && !pollBox.classList.contains('hidden')) {
-    const question = document.getElementById('poll-question').value.trim();
-    const options = Array.from(document.querySelectorAll('.poll-opt-input'))
-      .map(inp => inp.value.trim())
-      .filter(v => v.length > 0);
-
-    if (question && options.length >= 2) {
-      poll = {
-        question: question,
-        options: options,
-        durationHours: 24
-      };
-    }
-  }
 
   const visibility = document.getElementById('composer-visibility')?.value || 'PUBLIC';
 
@@ -893,9 +946,17 @@ async function handlePublishPost() {
     removeMedia();
     closePollBuilder();
 
-    // Reload Feed & Tags
-    loadFeed();
-    loadTrendingTags();
+    // Prepend immediately to state.posts for instantaneous UI update
+    if (createdPost && (createdPost.id || createdPost.postId)) {
+      state.posts = [createdPost, ...state.posts.filter(p => (p.postId || p.id) !== (createdPost.postId || createdPost.id))];
+      renderFeed(state.posts);
+    }
+
+    // Reload Feed & Tags from backend
+    setTimeout(() => {
+      loadFeed();
+      loadTrendingTags();
+    }, 400);
   } catch (error) {
     console.error('Publish error:', error);
     showToast(error.message, 'error');
@@ -1018,12 +1079,28 @@ async function handleMediaFileUpload(e) {
 // Poll builder helpers
 function togglePollBuilder() {
   const box = document.getElementById('composer-poll-box');
-  box?.classList.toggle('hidden');
+  if (!box) return;
+  const isHidden = box.classList.contains('hidden');
+  if (isHidden) {
+    box.classList.remove('hidden');
+    document.getElementById('poll-question')?.focus();
+  } else {
+    closePollBuilder();
+  }
 }
 
 function closePollBuilder() {
-  document.getElementById('composer-poll-box')?.classList.add('hidden');
-  document.getElementById('poll-question').value = '';
+  const box = document.getElementById('composer-poll-box');
+  if (box) box.classList.add('hidden');
+  const q = document.getElementById('poll-question');
+  if (q) q.value = '';
+  const list = document.getElementById('poll-options-list');
+  if (list) {
+    list.innerHTML = `
+      <input type="text" placeholder="אפשרות 1" class="form-input poll-opt-input mb-1">
+      <input type="text" placeholder="אפשרות 2" class="form-input poll-opt-input mb-1">
+    `;
+  }
 }
 
 function addPollOption() {
@@ -1038,6 +1115,40 @@ function addPollOption() {
   input.placeholder = `אפשרות ${currentCount + 1}`;
   input.className = 'form-input poll-opt-input mb-1';
   list.appendChild(input);
+  input.focus();
+}
+
+function updatePollUI(postId, poll) {
+  const container = document.getElementById(`poll-container-${postId}`);
+  if (!container || !poll) return;
+
+  const totalVotes = poll.totalVotes != null ? poll.totalVotes : (poll.options || []).reduce((acc, opt) => acc + (opt.voteCount || 0), 0);
+  const selectedOptionId = poll.selectedOptionId;
+
+  const optionsHtml = (poll.options || []).map(opt => {
+    const isSelected = opt.selected || (selectedOptionId && selectedOptionId === opt.id);
+    const pct = opt.percentage != null && opt.percentage > 0 
+      ? Math.round(opt.percentage) 
+      : (totalVotes > 0 ? Math.round(((opt.voteCount || 0) / totalVotes) * 100) : 0);
+    return `
+      <div class="poll-option-row ${isSelected ? 'voted-option' : ''}" data-post-id="${postId}" data-option-id="${opt.id}">
+        <div class="poll-bar" style="width: ${pct}%"></div>
+        <span class="poll-opt-text">${opt.text} ${isSelected ? '✓' : ''}</span>
+        <span class="poll-opt-percent">${pct}% (${opt.voteCount || 0})</span>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="poll-question">📊 ${poll.question}</div>
+    <div class="poll-options-list">
+      ${optionsHtml}
+    </div>
+    <div class="poll-footer" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+      <span>סה"כ הצבעות: <strong class="poll-total-count">${totalVotes}</strong></span>
+      <span style="color: var(--accent-primary); font-weight: 600;">✓ הצבעת בסקר</span>
+    </div>
+  `;
 }
 
 function insertHashtagPrompt() {
