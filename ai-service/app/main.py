@@ -1,14 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+import httpx
 from app.config import config
 from app.gemini_client import gemini_client
 
 app = FastAPI(
-    title="SocialFlow AI Service (Gemini 3.5 Flash-Lite)",
-    description="Real-time content moderation, smart tagging, sentiment analysis, and smart replies for SocialFlow",
-    version="1.0.0"
+    title="SocialFlow AI Service (Gemini 3.5 Flash-Lite & RAG)",
+    description="Real-time content moderation, smart tagging, sentiment analysis, RAG feed Q&A, and conversational chat replies for SocialFlow",
+    version="1.1.0"
 )
 
 app.add_middleware(
@@ -24,6 +25,15 @@ class AnalyzeRequest(BaseModel):
 
 class SmartRepliesRequest(BaseModel):
     content: str
+
+class AskFeedRequest(BaseModel):
+    question: str
+    posts: Optional[List[Dict[str, Any]]] = None
+
+class ChatReplyRequest(BaseModel):
+    sender: str = "דניאל לוי"
+    message: str
+    history: Optional[List[Dict[str, str]]] = None
 
 class SetKeyRequest(BaseModel):
     api_key: str
@@ -46,6 +56,27 @@ async def analyze_post(req: AnalyzeRequest):
 async def get_smart_replies(req: SmartRepliesRequest):
     replies = await gemini_client.generate_smart_replies(req.content)
     return {"replies": replies}
+
+@app.post("/api/v1/ai/ask-feed")
+async def ask_feed(req: AskFeedRequest):
+    posts_context = req.posts or []
+    # If no posts provided directly in the request, try fetching recent feed from feed-service or post-service
+    if not posts_context:
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                res = await client.get("http://feed-service:8083/api/v1/feed/for-you?userId=1&page=0&size=20")
+                if res.status_code == 200:
+                    data = res.json()
+                    posts_context = data.get("content", [])
+        except Exception:
+            pass
+
+    return await gemini_client.ask_feed_rag(req.question, posts_context)
+
+@app.post("/api/v1/ai/chat-reply")
+async def chat_reply(req: ChatReplyRequest):
+    reply = await gemini_client.generate_chat_reply(req.sender, req.message, req.history)
+    return {"reply": reply}
 
 @app.post("/api/v1/ai/config")
 async def update_config(req: SetKeyRequest):

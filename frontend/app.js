@@ -1236,9 +1236,22 @@ function handleSearchInput(e) {
       const data = await res.json();
       const results = data.content || (Array.isArray(data) ? data : []);
 
+      const aiAskRow = `
+        <div class="search-result-item ai-search-ask-item" style="background: rgba(99, 102, 241, 0.12); border-bottom: 1px solid var(--border-subtle); cursor: pointer;">
+          <div style="font-weight: 700; color: var(--accent-primary); display: flex; align-items: center; gap: 6px;">
+            <span>✨</span> <span>שאל את מנוע ה-RAG על הפיד:</span>
+          </div>
+          <div style="font-size: 0.84rem; color: var(--text-main); margin-top: 2px;">"${escapeHtml(query)}"</div>
+        </div>
+      `;
+
       if (results.length === 0) {
-        dropdown.innerHTML = '<div class="p-2 text-center" style="font-size: 0.82rem; color: var(--text-muted);">לא נמצאו תוצאות ב-Elasticsearch</div>';
+        dropdown.innerHTML = aiAskRow + '<div class="p-2 text-center" style="font-size: 0.82rem; color: var(--text-muted);">לא נמצאו תוצאות ישירות ב-Elasticsearch</div>';
         dropdown.classList.remove('hidden');
+        document.querySelector('.ai-search-ask-item')?.addEventListener('click', () => {
+          dropdown.classList.add('hidden');
+          askFeedAIRag(query);
+        });
         return;
       }
 
@@ -1755,35 +1768,69 @@ function initSocialShowcaseFeatures() {
     });
   }
 
-  // 2. Stories Viewer Interaction
-  const storyItems = document.querySelectorAll('.story-item:not(.create-story)');
+  // 2. Stories Viewer & Creator Interaction
   const storyModal = document.getElementById('story-modal');
   const btnCloseStory = document.getElementById('btn-close-story');
   const progressFill = document.getElementById('story-progress-fill');
 
-  storyItems.forEach(item => {
+  function openStoryViewer(name, img, avatar) {
+    document.getElementById('story-viewer-name').textContent = name;
+    document.getElementById('story-viewer-avatar').src = avatar;
+    document.getElementById('story-viewer-img').src = img;
+
+    storyModal?.classList.remove('hidden');
+
+    if (progressFill) {
+      progressFill.style.width = '0%';
+      setTimeout(() => { progressFill.style.width = '100%'; }, 50);
+    }
+
+    clearTimeout(storyTimer);
+    storyTimer = setTimeout(() => {
+      closeStory();
+    }, 5000);
+  }
+
+  function setupStoryClick(item) {
     item.addEventListener('click', () => {
       const name = item.dataset.name || 'משתמש';
       const img = item.dataset.img || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
       const avatar = item.querySelector('.story-avatar')?.src || '';
-
-      document.getElementById('story-viewer-name').textContent = name;
-      document.getElementById('story-viewer-avatar').src = avatar;
-      document.getElementById('story-viewer-img').src = img;
-
-      storyModal?.classList.remove('hidden');
+      openStoryViewer(name, img, avatar);
       item.querySelector('.story-avatar-wrapper')?.classList.remove('unread');
-
-      if (progressFill) {
-        progressFill.style.width = '0%';
-        setTimeout(() => { progressFill.style.width = '100%'; }, 50);
-      }
-
-      clearTimeout(storyTimer);
-      storyTimer = setTimeout(() => {
-        closeStory();
-      }, 5000);
     });
+  }
+
+  document.querySelectorAll('.story-item:not(.create-story)').forEach(setupStoryClick);
+
+  // Create Story Handler
+  const btnCreateStory = document.getElementById('btn-create-story');
+  btnCreateStory?.addEventListener('click', () => {
+    const storyText = prompt('הזן כיתוב או תיאור לסטורי שלך (למשל: סיימתי לפתח את המיקרו-שירותים של SocialFlow! 🚀):');
+    if (!storyText || !storyText.trim()) return;
+
+    const imgOptions = [
+      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80'
+    ];
+    const chosenImg = imgOptions[Math.floor(Math.random() * imgOptions.length)];
+
+    const newStory = document.createElement('div');
+    newStory.className = 'story-item';
+    newStory.dataset.user = state.currentUser?.username || 'idan';
+    newStory.dataset.name = state.currentUser?.fullName || 'הסטורי שלך';
+    newStory.dataset.img = chosenImg;
+    newStory.innerHTML = `
+      <div class="story-avatar-wrapper unread">
+        <img src="https://api.dicebear.com/7.x/bottts/svg?seed=${state.currentUser?.username || 'idan'}" alt="My Story" class="story-avatar">
+      </div>
+      <span class="story-username">${escapeHtml(storyText.slice(0, 10))}...</span>
+    `;
+
+    btnCreateStory.after(newStory);
+    setupStoryClick(newStory);
+    showToast('הסטורי שלך פורסם בהצלחה ופעיל ל-24 שעות! 📸', 'success');
   });
 
   btnCloseStory?.addEventListener('click', closeStory);
@@ -1814,7 +1861,7 @@ function initSocialShowcaseFeatures() {
     messengerDrawer?.classList.add('hidden');
   });
 
-  function sendChatMessage() {
+  async function sendChatMessage() {
     const text = messengerInput?.value?.trim();
     if (!text) return;
 
@@ -1826,14 +1873,36 @@ function initSocialShowcaseFeatures() {
     messengerInput.value = '';
     messengerBody.scrollTop = messengerBody.scrollHeight;
 
-    // Simulate smart quick reply after 1s
+    const activeFriendName = document.getElementById('chat-active-name')?.textContent || 'דניאל לוי';
+
+    // Call live AI chat endpoint for intelligent Hebrew replies
+    try {
+      const res = await fetch(`${CONFIG.API_BASE}/api/v1/ai/chat-reply`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ sender: activeFriendName, message: text })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const replyTime = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+        const replyBubble = document.createElement('div');
+        replyBubble.className = 'chat-bubble incoming';
+        replyBubble.innerHTML = `<span>${escapeHtml(data.reply || 'תודה על ההודעה!')}</span><span class="bubble-time">${replyTime}</span>`;
+        messengerBody?.appendChild(replyBubble);
+        messengerBody.scrollTop = messengerBody.scrollHeight;
+        return;
+      }
+    } catch (err) {
+      console.warn('AI chat reply fallback:', err);
+    }
+
     setTimeout(() => {
       const replyBubble = document.createElement('div');
       replyBubble.className = 'chat-bubble incoming';
       replyBubble.innerHTML = `<span>אחלה רעיון! תודה על העדכון 👍</span><span class="bubble-time">${time}</span>`;
       messengerBody?.appendChild(replyBubble);
       messengerBody.scrollTop = messengerBody.scrollHeight;
-    }, 1200);
+    }, 1000);
   }
 
   btnSendMessage?.addEventListener('click', sendChatMessage);
@@ -1868,3 +1937,57 @@ window.openChatWith = function(name, avatar) {
   drawer?.classList.remove('hidden');
   document.getElementById('messenger-input')?.focus();
 };
+
+
+// ============================================================================
+// AI Feed RAG & Semantic QA
+// ============================================================================
+
+async function askFeedAIRag(question) {
+  const container = document.getElementById('feed-container');
+  if (!container) return;
+
+  showToast('מפעיל שאילתת RAG חכמה עם Gemini 3.5 Flash-Lite...', 'info');
+
+  const skeletonCard = document.createElement('div');
+  skeletonCard.className = 'card glass-card p-4 mb-3 ai-rag-card';
+  skeletonCard.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px; color: var(--accent-primary); font-weight: 700; margin-bottom: 8px;">
+      <span class="pulse-dot"></span> <span>עוזר הפיד (RAG Intelligence Engine) מעבד את שאלתך: "${escapeHtml(question)}"...</span>
+    </div>
+    <div style="font-size: 0.88rem; color: var(--text-muted);">סורק פוסטים וסקרים אחרונים ב-SocialFlow...</div>
+  `;
+  container.prepend(skeletonCard);
+
+  try {
+    const res = await fetch(`${CONFIG.API_BASE}/api/v1/ai/ask-feed`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ question, posts: state.posts })
+    });
+
+    if (!res.ok) throw new Error('שגיאה בתקשורת עם מנוע ה-AI');
+    const data = await res.json();
+
+    skeletonCard.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent-primary);">
+          <span>✨</span> <span>תשובת מנוע ה-RAG (Gemini 3.5 Flash-Lite)</span>
+        </div>
+        <button class="btn-text-xs" onclick="this.closest('.ai-rag-card').remove()">סגור</button>
+      </div>
+      <div style="font-size: 0.92rem; line-height: 1.6; color: var(--text-main); white-space: pre-wrap; margin-bottom: 10px;">
+        ${escapeHtml(data.answer || 'לא התקבלה תשובה')}
+      </div>
+      <div style="font-size: 0.76rem; color: var(--text-muted); display: flex; gap: 12px;">
+        <span>📊 פוסטים שנסרקו: <strong>${data.relevant_posts_count || state.posts.length}</strong></span>
+        <span>⚡ מודל: <strong>Gemini 3.5 Flash-Lite</strong></span>
+      </div>
+    `;
+  } catch (err) {
+    skeletonCard.innerHTML = `
+      <div style="color: var(--danger); font-weight: 700;">שגיאה בביצוע שאילתת RAG</div>
+      <div style="font-size: 0.82rem; color: var(--text-muted);">${err.message}</div>
+    `;
+  }
+}
