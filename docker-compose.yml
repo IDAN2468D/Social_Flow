@@ -66,6 +66,7 @@ services:
     image: minio/minio:latest
     container_name: socialflow-minio
     restart: always
+    user: root
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadminpassword
@@ -199,18 +200,36 @@ services:
       MEDIA_SERVICE_URI: http://media-service:8084
       NOTIFICATION_SERVICE_URI: http://notification-service:8085
       NOTIFICATION_SERVICE_WS_URI: ws://notification-service:8085
+      AI_SERVICE_URI: http://ai-service:8086
     depends_on:
       - user-service
       - post-service
       - feed-service
       - media-service
       - notification-service
+      - ai-service
     networks:
       - socialflow-net
 
   # =========================================================================
   # 3. ממשק משתמש (Frontend Web App)
   # =========================================================================
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: socialflow-ai-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: gemini-3.5-flash-lite
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - socialflow-net
   frontend:
     build:
       context: ./frontend

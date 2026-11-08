@@ -67,3 +67,8 @@ spring:
           uri: ${NOTIFICATION_SERVICE_WS_URI:${NOTIFICATION_SERVICE_URI:http://localhost:8085}}
           predicates:
             - Path=/ws/**
+        # 8. AI Service (8086) - Gemini 3.5 Flash-Lite
+        - id: ai-service
+          uri: ${AI_SERVICE_URI:http://localhost:8086}
+          predicates:
+            - Path=/api/v1/ai/**
