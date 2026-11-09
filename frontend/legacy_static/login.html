@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocialFlow — התחברות למערכת</title>
+  <meta name="description" content="התחברות לחשבון SocialFlow ברשת החברתית מבוססת Microservices">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <!-- Background Glow Orbs -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+
+  <div class="auth-page-wrapper">
+    <div class="auth-container">
+      
+      <!-- Brand Logo & Header -->
+      <div class="auth-brand-header">
+        <a href="index.html" class="auth-brand-logo" title="חזרה לדף הבית">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </a>
+        <h1 class="auth-brand-title">Social<span class="brand-accent">Flow</span></h1>
+        <span class="brand-badge">כניסה למערכת 🔐</span>
+      </div>
+
+      <!-- Main Login Card -->
+      <div class="card glass-card auth-card">
+        <h2 class="auth-card-title">ברוך שובך! 👋</h2>
+        <p class="auth-card-subtitle">התחבר לחשבונך כדי לפרסם פוסטים, לצפות בפיד ולתקשר עם חברים.</p>
+
+        <!-- Dynamic Feedback Alert -->
+        <div id="auth-alert" class="auth-alert-box hidden"></div>
+
+        <!-- Login Form -->
+        <form id="login-page-form">
+          <div class="form-group">
+            <label for="login-username">שם משתמש</label>
+            <input type="text" id="login-username" class="form-input" placeholder="למשל: idan" autocomplete="username" required autofocus>
+          </div>
+
+          <div class="form-group">
+            <label for="login-password">סיסמה</label>
+            <div class="password-input-group">
+              <input type="password" id="login-password" class="form-input" placeholder="הזן את סיסמתך..." autocomplete="current-password" required>
+              <button type="button" id="btn-toggle-pass" class="btn-toggle-password" title="הצג/הסתר סיסמה">👁️</button>
+            </div>
+          </div>
+
+          <!-- Quick Fill Demo Accounts -->
+          <div class="quick-fill-hint">
+            <span>מילוי מהיר:</span>
+            <button type="button" class="btn-text-xs fill-btn" data-user="idan" data-pass="password123">idan</button>
+            <button type="button" class="btn-text-xs fill-btn" data-user="testuser99" data-pass="password123">testuser99</button>
+            <button type="button" class="btn-text-xs fill-btn" data-user="david" data-pass="password123">david</button>
+          </div>
+
+          <button type="submit" id="btn-submit-login" class="btn btn-primary btn-full mt-3">
+            <span class="btn-text">התחבר עכשיו</span>
+            <span id="login-spinner" class="spinner-sm hidden" style="margin-right: 8px;"></span>
+          </button>
+        </form>
+
+        <!-- Switch to Register -->
+        <div class="auth-switch-prompt">
+          <span>עדיין אין לך חשבון?</span>
+          <a href="register.html">צור חשבון חדש בחינם ✨</a>
+        </div>
+      </div>
+
+      <!-- Back to Feed link -->
+      <div class="auth-back-nav">
+        <a href="index.html">← המשך כצופה אורח לפיד הראשי</a>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    const isDocker = window.location.port === '3000' || window.location.port === '80';
+    const API_BASE = isDocker ? '' : 'http://localhost:8088';
+
+    const alertBox = document.getElementById('auth-alert');
+    const form = document.getElementById('login-page-form');
+    const submitBtn = document.getElementById('btn-submit-login');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const spinner = document.getElementById('login-spinner');
+    const passInput = document.getElementById('login-password');
+    const togglePassBtn = document.getElementById('btn-toggle-pass');
+
+    // Toggle password visibility
+    togglePassBtn?.addEventListener('click', () => {
+      const isPass = passInput.type === 'password';
+      passInput.type = isPass ? 'text' : 'password';
+      togglePassBtn.textContent = isPass ? '🙈' : '👁️';
+    });
+
+    // Quick fill handlers
+    document.querySelectorAll('.fill-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('login-username').value = btn.dataset.user;
+        passInput.value = btn.dataset.pass;
+        passInput.focus();
+      });
+    });
+
+    function showAlert(msg, isSuccess = false) {
+      alertBox.textContent = msg;
+      alertBox.className = `auth-alert-box ${isSuccess ? 'auth-alert-success' : 'auth-alert-error'}`;
+      alertBox.classList.remove('hidden');
+    }
+
+    // Submit handler
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      alertBox.classList.add('hidden');
+
+      const username = document.getElementById('login-username').value.trim();
+      const password = passInput.value;
+
+      if (!username || !password) {
+        showAlert('נא למלא את כל השדות');
+        return;
+      }
+
+      try {
+        submitBtn.disabled = true;
+        btnText.textContent = 'מתחבר...';
+        spinner.classList.remove('hidden');
+
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.message || errData.error || (res.status === 401 ? 'שם משתמש או סיסמה שגויים' : `שגיאת התחברות מהשרת (${res.status})`);
+          throw new Error(errMsg);
+        }
+
+        const data = await res.json();
+        
+        // Save user state in localStorage
+        const userObj = {
+          userId: data.userId || 1,
+          username: data.username || username,
+          fullName: data.fullName || username,
+          email: data.email || '',
+          token: data.token || ''
+        };
+        localStorage.setItem('socialflow_user', JSON.stringify(userObj));
+
+        showAlert('התחברת בהצלחה! מעביר לפיד...', true);
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 600);
+
+      } catch (err) {
+        console.error('Login error:', err);
+        showAlert(err.message || 'אירעה שגיאה בעת ההתחברות. ודא ששירותי המערכת פועלים.');
+      } finally {
+        submitBtn.disabled = false;
+        btnText.textContent = 'התחבר עכשיו';
+        spinner.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -237,6 +237,11 @@
             <button id="btn-ai-enhance" class="btn-tool-pill ai-magic-pill" title="שפר ניסוח והוסף האשטאגים עם Gemini 3.5 Flash">
               <span>✨</span> <span>שפר עם AI</span>
             </button>
+
+            <!-- LangGraph Autonomous Agent Button -->
+            <button id="btn-langgraph-agent" class="btn-tool-pill" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; font-weight: 600;" title="הפעל סוכן AI אוטונומי ב-LangGraph">
+              <span>🤖</span> <span>סוכן AI (LangGraph)</span>
+            </button>
           </div>
 
           <!-- Media URL / Upload Bar -->
@@ -411,6 +416,63 @@
     <div class="messenger-input-bar">
       <input type="text" id="messenger-input" placeholder="כתוב הודעה לדניאל..." autocomplete="off">
       <button id="btn-send-message" class="btn-chat-send">➤</button>
+    </div>
+  </div>
+
+  <!-- LangGraph Autonomous Agent Modal -->
+  <div id="agent-modal" class="modal-backdrop hidden">
+    <div class="card glass-card modal-box" style="max-width: 600px; width: 92%; margin: auto; padding: 24px; border-radius: 16px; position: relative;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">🤖</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700;">סוכן AI אוטונומי (LangGraph)</h3>
+            <span style="font-size: 0.8rem; color: #a1a1aa;">מחקר טרנדים, ניסוח פוסט, בדיקת בטיחות ופרסום</span>
+          </div>
+        </div>
+        <button id="btn-close-agent-modal" class="btn-icon" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #fff;">✕</button>
+      </div>
+
+      <div id="agent-step-input">
+        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">מה הנושא שהסוכן יחקור ויפרסם?</label>
+        <input type="text" id="agent-topic-input" class="form-input" placeholder="לדוגמה: השקת מוצר AI חדש בישראל..." style="width: 100%; margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: white;">
+        
+        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">קהל יעד (אופציונלי):</label>
+        <input type="text" id="agent-audience-input" class="form-input" placeholder="מפתחים, קהל טכנולוגי, יזמים..." value="קהל טכנולוגי ויזמים" style="width: 100%; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: white;">
+
+        <button id="btn-start-agent" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px; font-weight: 700; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; color: white; cursor: pointer;">
+          🚀 הפעל סוכן לחקר וניסוח
+        </button>
+      </div>
+
+      <!-- Agent Progress Logs -->
+      <div id="agent-progress-box" class="hidden" style="margin-top: 16px; padding: 14px; background: rgba(0,0,0,0.4); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 0.85rem; font-weight: 600; color: #818cf8;">יומן פעולות הסוכן (State Graph Logs):</span>
+          <span id="agent-spinner" class="pulse-dot"></span>
+        </div>
+        <div id="agent-logs-list" style="max-height: 140px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; line-height: 1.5; color: #cbd5e1;"></div>
+      </div>
+
+      <!-- Agent Result Review & Human-in-the-Loop Confirmation -->
+      <div id="agent-result-box" class="hidden" style="margin-top: 16px; padding: 16px; background: rgba(99,102,241,0.08); border-radius: 12px; border: 1px solid rgba(99,102,241,0.3);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-weight: 700; font-size: 0.95rem; color: #a5b4fc;">טיוטה שנוצרה (אישור משתמש נדרש):</span>
+          <span id="agent-safety-badge" style="background: rgba(16,185,129,0.2); color: #34d399; padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">תוכן בטוח ✓</span>
+        </div>
+        <div id="agent-draft-preview" style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; color: #f1f5f9; margin-bottom: 10px; white-space: pre-wrap;"></div>
+        
+        <div id="agent-poll-preview" class="hidden" style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 12px;"></div>
+
+        <div style="display: flex; gap: 10px; margin-top: 12px;">
+          <button id="btn-agent-approve-publish" class="btn-primary" style="flex: 2; padding: 10px; background: #10b981; border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer;">
+            ✓ אשר ופרסם בפיד
+          </button>
+          <button id="btn-agent-copy-editor" class="btn-secondary" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; cursor: pointer;">
+            העבר לעורך
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

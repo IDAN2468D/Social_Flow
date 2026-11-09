@@ -1768,6 +1768,144 @@ function initSocialShowcaseFeatures() {
     });
   }
 
+  // 1.1 LangGraph Autonomous Agent Integration
+  const btnLangGraph = document.getElementById('btn-langgraph-agent');
+  const agentModal = document.getElementById('agent-modal');
+  const btnCloseAgentModal = document.getElementById('btn-close-agent-modal');
+  const btnStartAgent = document.getElementById('btn-start-agent');
+  const agentTopicInput = document.getElementById('agent-topic-input');
+  const agentAudienceInput = document.getElementById('agent-audience-input');
+  const agentProgressBox = document.getElementById('agent-progress-box');
+  const agentLogsList = document.getElementById('agent-logs-list');
+  const agentResultBox = document.getElementById('agent-result-box');
+  const agentDraftPreview = document.getElementById('agent-draft-preview');
+  const agentPollPreview = document.getElementById('agent-poll-preview');
+  const btnApprovePublish = document.getElementById('btn-agent-approve-publish');
+  const btnCopyEditor = document.getElementById('btn-agent-copy-editor');
+
+  let currentAgentState = null;
+
+  if (btnLangGraph && agentModal) {
+    btnLangGraph.addEventListener('click', () => {
+      agentModal.classList.remove('hidden');
+      agentTopicInput?.focus();
+    });
+
+    btnCloseAgentModal?.addEventListener('click', () => {
+      agentModal.classList.add('hidden');
+    });
+
+    agentModal.addEventListener('click', (e) => {
+      if (e.target === agentModal) agentModal.classList.add('hidden');
+    });
+
+    btnStartAgent?.addEventListener('click', async () => {
+      const topic = agentTopicInput?.value.trim();
+      if (!topic) {
+        showToast('אנא הזן נושא למחקר וניסוח על ידי הסוכן', 'info');
+        return;
+      }
+
+      const audience = agentAudienceInput?.value.trim() || 'קהל כללי';
+
+      btnStartAgent.disabled = true;
+      btnStartAgent.innerHTML = '<span>⏳</span> <span>סוכן LangGraph חוקר ומנסח...</span>';
+      agentProgressBox.classList.remove('hidden');
+      agentResultBox.classList.add('hidden');
+      agentLogsList.innerHTML = '<div>🚀 מאתחל StateGraph של LangGraph...</div>';
+
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/v1/ai/agent/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: topic,
+            user_id: STATE.currentUser.id || 1,
+            target_audience: audience,
+            user_approved: false
+          })
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          currentAgentState = result;
+
+          if (result.logs && Array.isArray(result.logs)) {
+            agentLogsList.innerHTML = result.logs.map(log => `<div>${log}</div>`).join('');
+          }
+
+          agentDraftPreview.textContent = result.draft_content || '';
+          if (result.suggested_poll && result.suggested_poll.question) {
+            agentPollPreview.classList.remove('hidden');
+            const opts = (result.suggested_poll.options || []).map(o => `<li>• ${o}</li>`).join('');
+            agentPollPreview.innerHTML = `<strong>📊 סקר מוצע:</strong> ${result.suggested_poll.question}<ul style="margin:4px 0 0 16px; padding:0;">${opts}</ul>`;
+          } else {
+            agentPollPreview.classList.add('hidden');
+          }
+
+          agentResultBox.classList.remove('hidden');
+          showToast('הסוכן השלים את המחקר והניסוח וממתין לאישורך! 🤖', 'success');
+        } else {
+          showToast(`שגיאה בהפעלת הסוכן: HTTP ${res.status}`, 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('שגיאת חיבור ל-LangGraph Agent', 'error');
+      } finally {
+        btnStartAgent.disabled = false;
+        btnStartAgent.innerHTML = '<span>🚀</span> <span>הפעל סוכן לחקר וניסוח</span>';
+      }
+    });
+
+    btnApprovePublish?.addEventListener('click', async () => {
+      if (!currentAgentState) return;
+      btnApprovePublish.disabled = true;
+      btnApprovePublish.textContent = '⏳ מפרסם בפיד...';
+
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/v1/ai/agent/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: currentAgentState.topic,
+            user_id: STATE.currentUser.id || 1,
+            target_audience: currentAgentState.target_audience,
+            user_approved: true
+          })
+        });
+
+        if (res.ok) {
+          showToast('הפוסט פורסם בהצלחה בפיד על ידי סוכן ה-AI! 🎉', 'success');
+          agentModal.classList.add('hidden');
+          loadFeed();
+        } else {
+          showToast('שגיאה בפרסום הפוסט', 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('שגיאת תקשורת בפרסום', 'error');
+      } finally {
+        btnApprovePublish.disabled = false;
+        btnApprovePublish.textContent = '✓ אשר ופרסם בפיד';
+      }
+    });
+
+    btnCopyEditor?.addEventListener('click', () => {
+      if (!currentAgentState) return;
+      const textarea = document.getElementById('composer-content');
+      if (textarea) {
+        let text = currentAgentState.draft_content;
+        if (currentAgentState.suggested_tags && currentAgentState.suggested_tags.length) {
+          text += '\n\n' + currentAgentState.suggested_tags.map(t => `#${t}`).join(' ');
+        }
+        textarea.value = text;
+        showToast('התוכן הועבר בהצלחה לעורך הראשי!', 'success');
+        agentModal.classList.add('hidden');
+        textarea.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  }
+
   // 2. Stories Viewer & Creator Interaction
   const storyModal = document.getElementById('story-modal');
   const btnCloseStory = document.getElementById('btn-close-story');

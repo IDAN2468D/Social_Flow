@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocialFlow — רשת חברתית מודרנית</title>
+  <meta name="description" content="SocialFlow — רשת חברתית מהדור הבא עם בינה מלאכותית, סטוריז, צ'אט ופידים חכמים">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body>
+  <!-- Ambient Glow Effects -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+
+  <!-- Main Top Navigation (Instagram & Facebook Style) -->
+  <header class="navbar" id="app-navbar">
+    <div class="nav-container">
+      <!-- Brand Logo -->
+      <div class="nav-brand" id="nav-brand-logo" style="cursor: pointer;">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">Social<span class="brand-accent">Flow</span></span>
+        </div>
+      </div>
+
+      <!-- Modern Search Bar -->
+      <div class="nav-search">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </svg>
+          <input type="text" id="global-search-input" placeholder="חיפוש אנשים, פוסטים והאשטאגים..." autocomplete="off">
+          <kbd class="search-kbd">⌘K</kbd>
+        </div>
+        <div id="search-results-dropdown" class="search-dropdown hidden"></div>
+      </div>
+
+      <!-- Action Icons -->
+      <div class="nav-actions">
+        <!-- Direct Messages / Chat Bubble -->
+        <button id="btn-open-messenger" class="btn-icon-bubble" title="הודעות ישירות" aria-label="צ'אט">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <span class="badge-counter">2</span>
+        </button>
+
+        <!-- Real-Time Notifications Bell -->
+        <div class="notifications-wrapper" id="notifications-wrapper">
+          <button id="btn-notifications-toggle" class="btn-icon-bubble" title="התראות" aria-label="התראות">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <span id="unread-notifications-count" class="badge-counter hidden">0</span>
+          </button>
+
+          <div id="notifications-dropdown" class="notifications-dropdown hidden">
+            <div class="dropdown-header">
+              <div class="dropdown-title-group">
+                <span class="dropdown-title">🔔 התראות ועדכונים</span>
+                <span id="ws-status-indicator" class="ws-status-pill ws-connected" title="מחובר בזמן אמת">
+                  <span class="pulse-dot"></span> <span class="ws-status-text">לייב</span>
+                </span>
+              </div>
+              <button id="btn-mark-all-read" class="btn-link-xs">סמן הכל כנקרא</button>
+            </div>
+            <div id="notifications-list" class="notifications-list"></div>
+          </div>
+        </div>
+
+        <!-- User Profile Avatar & Menu -->
+        <div id="auth-section" class="auth-section"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- App Main 3-Column Layout -->
+  <div class="app-layout">
+    <!-- Left Navigation Bar (Instagram & Twitter Style) -->
+    <aside class="sidebar-left" id="sidebar-left">
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="for-you" id="nav-for-you">
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">פיד ראשי (For You)</span>
+        </button>
+        <button class="nav-item" data-tab="following" id="nav-following">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">עוקב אחריהם</span>
+        </button>
+        <button class="nav-item" data-tab="stories" id="nav-stories-tab">
+          <span class="nav-icon">⭕</span>
+          <span class="nav-label">סטוריז (Stories)</span>
+          <span class="badge-new">חדש</span>
+        </button>
+        <button class="nav-item" data-tab="trending" id="nav-trending">
+          <span class="nav-icon">🔥</span>
+          <span class="nav-label">טרנדים ופופולרי</span>
+        </button>
+        <button class="nav-item" data-tab="messages" id="nav-messages">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">הודעות (DMs)</span>
+        </button>
+        <button class="nav-item" data-tab="bookmarks" id="nav-bookmarks">
+          <span class="nav-icon">🔖</span>
+          <span class="nav-label">סימניות שמורות</span>
+        </button>
+        <button class="nav-item" data-tab="notifications" id="nav-notifications">
+          <span class="nav-icon">🔔</span>
+          <span class="nav-label">התראות</span>
+          <span id="sidebar-unread-badge" class="badge-counter sidebar-counter hidden">0</span>
+        </button>
+        
+        <div class="nav-divider"></div>
+
+        <!-- Quick Profile Preview Card -->
+        <div class="user-mini-profile" id="user-mini-profile">
+          <img src="https://api.dicebear.com/7.x/bottts/svg?seed=idan" alt="User Avatar" class="mini-avatar" id="mini-user-avatar">
+          <div class="mini-info">
+            <span class="mini-name" id="mini-username">עידן קזם</span>
+            <span class="mini-handle">@idan</span>
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Center Feed Stream -->
+    <main class="main-content" id="main-content">
+      <!-- 1. Stories Tray (Instagram Stories Bar) -->
+      <section class="stories-container" id="stories-container">
+        <div class="stories-scroll">
+          <!-- Add My Story -->
+          <div class="story-item create-story" id="btn-create-story">
+            <div class="story-avatar-wrapper add-wrapper">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=idan" alt="My Avatar" class="story-avatar">
+              <span class="plus-badge">+</span>
+            </div>
+            <span class="story-username">הסטורי שלך</span>
+          </div>
+
+          <!-- Active Stories with glowing rainbow gradient rings -->
+          <div class="story-item" data-user="noa" data-name="נועה כהן" data-img="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80">
+            <div class="story-avatar-wrapper unread">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Noa" alt="Noa" class="story-avatar">
+            </div>
+            <span class="story-username">נועה</span>
+          </div>
+
+          <div class="story-item" data-user="daniel" data-name="דניאל לוי" data-img="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80">
+            <div class="story-avatar-wrapper unread">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Daniel" alt="Daniel" class="story-avatar">
+            </div>
+            <span class="story-username">דניאל</span>
+          </div>
+
+          <div class="story-item" data-user="maya" data-name="מאיה שקד" data-img="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80">
+            <div class="story-avatar-wrapper unread">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Maya" alt="Maya" class="story-avatar">
+            </div>
+            <span class="story-username">מאיה</span>
+          </div>
+
+          <div class="story-item" data-user="yonatan" data-name="יונתן רון" data-img="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80">
+            <div class="story-avatar-wrapper unread">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Yonatan" alt="Yonatan" class="story-avatar">
+            </div>
+            <span class="story-username">יונתן</span>
+          </div>
+
+          <div class="story-item" data-user="tomer" data-name="תומר גולן" data-img="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=600&q=80">
+            <div class="story-avatar-wrapper unread">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Tomer" alt="Tomer" class="story-avatar">
+            </div>
+            <span class="story-username">תומר</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Create Post Card (Facebook / Threads Style) -->
+      <section class="card glass-card composer-card" id="composer-card">
+        <div class="composer-top">
+          <div class="avatar-wrapper">
+            <img id="composer-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=idan" alt="User Avatar" class="user-avatar">
+          </div>
+          <div class="composer-input-area">
+            <textarea id="composer-content" placeholder="על מה אתה חושב, עידן? שתף עדכון, תמונה או סקר..." rows="3"></textarea>
+          </div>
+        </div>
+
+        <!-- Media Preview Area -->
+        <div id="composer-media-preview" class="media-preview-container hidden">
+          <img id="preview-image" src="" alt="תצוגה מקדימה">
+          <button id="btn-remove-media" class="btn-icon remove-media-btn" title="הסר מדיה">✕</button>
+        </div>
+
+        <!-- Optional Poll Builder -->
+        <div id="composer-poll-box" class="poll-builder-box hidden">
+          <div class="poll-builder-header">
+            <span class="poll-title-sm">📊 יצירת סקר אינטראקטיבי</span>
+            <button id="btn-close-poll" class="btn-text-xs">ביטול</button>
+          </div>
+          <input type="text" id="poll-question" placeholder="שאלת הסקר שלך..." class="form-input mb-2">
+          <div id="poll-options-list" class="poll-options-inputs">
+            <input type="text" placeholder="אפשרות 1" class="form-input poll-opt-input mb-1">
+            <input type="text" placeholder="אפשרות 2" class="form-input poll-opt-input mb-1">
+          </div>
+          <button id="btn-add-poll-option" class="btn-text-xs mt-1">+ הוסף אפשרות בחירה</button>
+        </div>
+
+        <!-- Composer Bottom Toolbar -->
+        <div class="composer-footer">
+          <div class="composer-tools">
+            <button id="btn-toggle-media" class="btn-tool-pill" title="הוסף תמונה">
+              <span>🖼️</span> <span>תמונה</span>
+            </button>
+            <input type="file" id="media-file-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
+            
+            <button id="btn-toggle-poll" class="btn-tool-pill" title="צור סקר">
+              <span>📊</span> <span>סקר</span>
+            </button>
+            
+            <button id="btn-add-hashtag" class="btn-tool-pill" title="הוסף האשטאג">
+              <span>#️⃣</span> <span>תגית</span>
+            </button>
+
+            <!-- Gemini 3.5 Flash-Lite AI Assist Button -->
+            <button id="btn-ai-enhance" class="btn-tool-pill ai-magic-pill" title="שפר ניסוח והוסף האשטאגים עם Gemini 3.5 Flash">
+              <span>✨</span> <span>שפר עם AI</span>
+            </button>
+
+            <!-- LangGraph Autonomous Agent Button -->
+            <button id="btn-langgraph-agent" class="btn-tool-pill" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; font-weight: 600;" title="הפעל סוכן AI אוטונומי ב-LangGraph">
+              <span>🤖</span> <span>סוכן AI (LangGraph)</span>
+            </button>
+          </div>
+
+          <!-- Media URL / Upload Bar -->
+          <div id="media-url-input-wrap" class="media-input-inline hidden">
+            <button type="button" id="btn-trigger-upload" class="btn btn-secondary btn-xs">📁 קובץ</button>
+            <input type="url" id="media-url-input" placeholder="או הדבק קישור לתמונה..." class="form-input-sm">
+            <button id="btn-confirm-media" class="btn btn-primary btn-xs">צרף</button>
+            <span id="media-upload-spinner" class="spinner-sm hidden"></span>
+          </div>
+
+          <div class="composer-submit-group">
+            <select id="composer-visibility" class="select-compact">
+              <option value="PUBLIC">🌐 ציבורי</option>
+              <option value="FOLLOWERS">👥 עוקבים</option>
+            </select>
+            <button id="btn-publish-post" class="btn btn-primary btn-publish">
+              <span class="btn-label">פרסם</span>
+              <span class="spinner hidden"></span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feed Stream Title Bar -->
+      <div class="feed-header-bar">
+        <div class="feed-title-wrap">
+          <h1 id="feed-heading" class="feed-title">פיד ראשי</h1>
+          <span id="feed-count-badge" class="badge">טוען...</span>
+        </div>
+        <button id="btn-refresh-feed" class="btn btn-ghost btn-sm" title="רענן פוסטים">
+          <span class="refresh-icon">🔄</span> רענן
+        </button>
+      </div>
+
+      <!-- Feed Stream Container -->
+      <section id="feed-container" class="feed-container">
+        <div class="feed-loading-skeleton">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Right Sidebar (Social Discovery & Trends) -->
+    <aside class="sidebar-right" id="sidebar-right">
+      <!-- 1. Who To Follow (הצעות מעקב) -->
+      <div class="card glass-card follow-suggestions-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">👥 הצעות מעקב עבורך</span>
+        </div>
+        <div class="suggestions-list" id="suggestions-list">
+          <div class="suggestion-item">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Noa" alt="Noa" class="suggest-avatar">
+            <div class="suggest-info">
+              <span class="suggest-name">נועה כהן</span>
+              <span class="suggest-mutual">נעקבת ע״י דניאל ועוד 4</span>
+            </div>
+            <button class="btn-follow-toggle">עקוב</button>
+          </div>
+
+          <div class="suggestion-item">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Daniel" alt="Daniel" class="suggest-avatar">
+            <div class="suggest-info">
+              <span class="suggest-name">דניאל לוי</span>
+              <span class="suggest-mutual">מפתח תוכנה • תל אביב</span>
+            </div>
+            <button class="btn-follow-toggle">עקוב</button>
+          </div>
+
+          <div class="suggestion-item">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Maya" alt="Maya" class="suggest-avatar">
+            <div class="suggest-info">
+              <span class="suggest-name">מאיה שקד</span>
+              <span class="suggest-mutual">מעצבת מוצר ב-AI</span>
+            </div>
+            <button class="btn-follow-toggle">עקוב</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Trending Hashtags Card -->
+      <div class="card glass-card trending-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">🔥 נושאים וטרנדים חמים</span>
+        </div>
+        <div id="trending-tags-container" class="trending-tags-list">
+          <div class="tag-chip-skeleton"></div>
+          <div class="tag-chip-skeleton"></div>
+        </div>
+      </div>
+
+      <!-- 3. Active Contacts / DMs list -->
+      <div class="card glass-card contacts-card">
+        <div class="card-header-compact">
+          <span class="card-title-sm">🟢 אנשי קשר מחוברים</span>
+        </div>
+        <div class="online-contacts-list">
+          <div class="contact-row" onclick="openChatWith('דניאל לוי', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Daniel')">
+            <div class="contact-avatar-wrap">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Daniel" class="contact-avatar">
+              <span class="online-dot"></span>
+            </div>
+            <span class="contact-name">דניאל לוי</span>
+          </div>
+
+          <div class="contact-row" onclick="openChatWith('נועה כהן', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Noa')">
+            <div class="contact-avatar-wrap">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Noa" class="contact-avatar">
+              <span class="online-dot"></span>
+            </div>
+            <span class="contact-name">נועה כהן</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clean Social Footer -->
+      <footer class="social-footer">
+        <div class="footer-links">
+          <a href="#">אודות</a> • <a href="#">פרטיות</a> • <a href="#">תנאים</a> • <a href="#">עזרה</a>
+        </div>
+        <span class="footer-copy">SocialFlow © 2026 — כל הזכויות שמורות</span>
+      </footer>
+    </aside>
+  </div>
+
+  <!-- Story Viewer Fullscreen Modal (Instagram Style) -->
+  <div id="story-modal" class="modal-backdrop hidden">
+    <div class="story-viewer-card">
+      <div class="story-progress-bar">
+        <div class="story-progress-fill" id="story-progress-fill"></div>
+      </div>
+      <div class="story-header">
+        <div class="story-author">
+          <img id="story-viewer-avatar" src="" alt="Author Avatar" class="story-header-avatar">
+          <span id="story-viewer-name" class="story-header-name"></span>
+          <span class="story-time">לפני שעתיים</span>
+        </div>
+        <button id="btn-close-story" class="btn-icon">✕</button>
+      </div>
+      <div class="story-image-wrap">
+        <img id="story-viewer-img" src="" alt="Story View">
+      </div>
+      <div class="story-reply-bar">
+        <input type="text" placeholder="השב לסטורי בהודעה..." class="story-reply-input">
+        <button class="btn-story-send">❤️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direct Messages Floating Chat Drawer (Instagram / Messenger Style) -->
+  <div id="messenger-drawer" class="messenger-drawer hidden">
+    <div class="messenger-header">
+      <div class="chat-user-header">
+        <img id="chat-active-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Daniel" class="chat-mini-avatar">
+        <div>
+          <strong id="chat-active-name">דניאל לוי</strong>
+          <span class="chat-status-sub">מחובר כעת 🟢</span>
+        </div>
+      </div>
+      <button id="btn-close-messenger" class="btn-icon">✕</button>
+    </div>
+    <div id="messenger-body" class="messenger-body">
+      <div class="chat-bubble incoming">
+        <span>היי עידן! ראיתי שהעלית את הפידים החדשים של SocialFlow, נראה מעולה 🔥</span>
+        <span class="bubble-time">19:42</span>
+      </div>
+      <div class="chat-bubble outgoing">
+        <span>תודה דניאל! שילבנו גם את Gemini 3.5 Flash-Lite לסיווג והאשטאגים חכמים.</span>
+        <span class="bubble-time">19:44</span>
+      </div>
+    </div>
+    <div class="messenger-input-bar">
+      <input type="text" id="messenger-input" placeholder="כתוב הודעה לדניאל..." autocomplete="off">
+      <button id="btn-send-message" class="btn-chat-send">➤</button>
+    </div>
+  </div>
+
+  <!-- LangGraph Autonomous Agent Modal -->
+  <div id="agent-modal" class="modal-backdrop hidden">
+    <div class="card glass-card modal-box" style="max-width: 600px; width: 92%; margin: auto; padding: 24px; border-radius: 16px; position: relative;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">🤖</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700;">סוכן AI אוטונומי (LangGraph)</h3>
+            <span style="font-size: 0.8rem; color: #a1a1aa;">מחקר טרנדים, ניסוח פוסט, בדיקת בטיחות ופרסום</span>
+          </div>
+        </div>
+        <button id="btn-close-agent-modal" class="btn-icon" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #fff;">✕</button>
+      </div>
+
+      <div id="agent-step-input">
+        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">מה הנושא שהסוכן יחקור ויפרסם?</label>
+        <input type="text" id="agent-topic-input" class="form-input" placeholder="לדוגמה: השקת מוצר AI חדש בישראל..." style="width: 100%; margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: white;">
+        
+        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">קהל יעד (אופציונלי):</label>
+        <input type="text" id="agent-audience-input" class="form-input" placeholder="מפתחים, קהל טכנולוגי, יזמים..." value="קהל טכנולוגי ויזמים" style="width: 100%; margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: white;">
+
+        <button id="btn-start-agent" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px; font-weight: 700; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; color: white; cursor: pointer;">
+          🚀 הפעל סוכן לחקר וניסוח
+        </button>
+      </div>
+
+      <!-- Agent Progress Logs -->
+      <div id="agent-progress-box" class="hidden" style="margin-top: 16px; padding: 14px; background: rgba(0,0,0,0.4); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 0.85rem; font-weight: 600; color: #818cf8;">יומן פעולות הסוכן (State Graph Logs):</span>
+          <span id="agent-spinner" class="pulse-dot"></span>
+        </div>
+        <div id="agent-logs-list" style="max-height: 140px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; line-height: 1.5; color: #cbd5e1;"></div>
+      </div>
+
+      <!-- Agent Result Review & Human-in-the-Loop Confirmation -->
+      <div id="agent-result-box" class="hidden" style="margin-top: 16px; padding: 16px; background: rgba(99,102,241,0.08); border-radius: 12px; border: 1px solid rgba(99,102,241,0.3);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-weight: 700; font-size: 0.95rem; color: #a5b4fc;">טיוטה שנוצרה (אישור משתמש נדרש):</span>
+          <span id="agent-safety-badge" style="background: rgba(16,185,129,0.2); color: #34d399; padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">תוכן בטוח ✓</span>
+        </div>
+        <div id="agent-draft-preview" style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; color: #f1f5f9; margin-bottom: 10px; white-space: pre-wrap;"></div>
+        
+        <div id="agent-poll-preview" class="hidden" style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 12px;"></div>
+
+        <div style="display: flex; gap: 10px; margin-top: 12px;">
+          <button id="btn-agent-approve-publish" class="btn-primary" style="flex: 2; padding: 10px; background: #10b981; border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer;">
+            ✓ אשר ופרסם בפיד
+          </button>
+          <button id="btn-agent-copy-editor" class="btn-secondary" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; cursor: pointer;">
+            העבר לעורך
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Media Viewer Modal -->
+  <div id="lightbox-modal" class="modal-backdrop hidden">
+    <div class="lightbox-content">
+      <button id="btn-close-lightbox" class="lightbox-close">✕</button>
+      <img id="lightbox-img" src="" alt="Full view">
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

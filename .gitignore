@@ -65,3 +65,12 @@ docker-data/
 # Temporary / Scratch Files
 scratch/
 JULES_REPORT.md
+
+.next/
+frontend/.next/
+
+# Python
+__pycache__/
+*.py[cod]
+temp_page.html
+*.png

@@ -5,6 +5,7 @@ from typing import Optional, List, Dict, Any
 import httpx
 from app.config import config
 from app.gemini_client import gemini_client
+from app.agent_workflow import socialflow_agent
 
 app = FastAPI(
     title="SocialFlow AI Service (Gemini 3.5 Flash-Lite & RAG)",
@@ -38,6 +39,12 @@ class ChatReplyRequest(BaseModel):
 class SetKeyRequest(BaseModel):
     api_key: str
     model: Optional[str] = "gemini-3.5-flash-lite"
+
+class AgentRunRequest(BaseModel):
+    topic: str
+    user_id: int = 1
+    target_audience: Optional[str] = "קהל רשת חברתית"
+    user_approved: bool = False
 
 @app.get("/health")
 async def health():
@@ -77,6 +84,32 @@ async def ask_feed(req: AskFeedRequest):
 async def chat_reply(req: ChatReplyRequest):
     reply = await gemini_client.generate_chat_reply(req.sender, req.message, req.history)
     return {"reply": reply}
+
+@app.post("/api/v1/ai/agent/run")
+async def run_socialflow_agent(req: AgentRunRequest):
+    """
+    Executes the autonomous SocialFlow LangGraph agent:
+    1. Researches feed trends
+    2. Drafts post & tags with Gemini
+    3. Moderates for safety
+    4. Publishes if user_approved is True (or halts at ready_for_review)
+    """
+    initial_state = {
+        "topic": req.topic,
+        "user_id": req.user_id,
+        "target_audience": req.target_audience,
+        "trends_context": [],
+        "draft_content": "",
+        "suggested_tags": [],
+        "suggested_poll": None,
+        "moderation_status": {},
+        "user_approved": req.user_approved,
+        "published_post_id": None,
+        "logs": [],
+        "error": None
+    }
+    result = await socialflow_agent.ainvoke(initial_state)
+    return result
 
 @app.post("/api/v1/ai/config")
 async def update_config(req: SetKeyRequest):
