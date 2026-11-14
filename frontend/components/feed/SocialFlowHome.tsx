@@ -43,6 +43,7 @@ import {
   type PostPollData,
 } from '@/components/feed/PostCard';
 import { BadgePill, GradientButton } from '@/components/ui/GlassPrimitives';
+import { clearStoredAuthToken, isJwtExpired } from '@/lib/auth';
 import { useSocialStore } from '@/store/useSocialStore';
 
 interface StoredUser {
@@ -397,6 +398,7 @@ export function SocialFlowHome() {
   const { unreadNotificationsCount } = useSocialStore();
 
   // Hydrated user state from localStorage("socialflow_user")
+  const [authHydrated, setAuthHydrated] = useState(false);
   const [storedUser, setStoredUser] = useState<StoredUser>({
     userId: 1,
     username: 'idan',
@@ -409,13 +411,17 @@ export function SocialFlowHome() {
       const raw = localStorage.getItem('socialflow_user');
       if (raw) {
         const parsed = JSON.parse(raw) as StoredUser;
+        const expired = parsed?.token ? isJwtExpired(parsed.token) : false;
+        if (expired) {
+          clearStoredAuthToken();
+        }
         if (parsed && parsed.username) {
           setStoredUser({
             userId: parsed.userId ?? 1,
             username: parsed.username,
             fullName: parsed.fullName || parsed.username,
             email: parsed.email,
-            token: parsed.token,
+            token: expired ? undefined : parsed.token,
             avatarUrl:
               parsed.avatarUrl ||
               `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(
@@ -426,6 +432,8 @@ export function SocialFlowHome() {
       }
     } catch {
       // Ignore storage access issues
+    } finally {
+      setAuthHydrated(true);
     }
   }, []);
 
@@ -505,7 +513,9 @@ export function SocialFlowHome() {
         'X-Auth-Username': storedUser.username || 'idan',
       };
       if (includeJson) headers['Content-Type'] = 'application/json';
-      if (storedUser.token) headers['Authorization'] = `Bearer ${storedUser.token}`;
+      if (storedUser.token && !isJwtExpired(storedUser.token)) {
+        headers['Authorization'] = `Bearer ${storedUser.token}`;
+      }
       return headers;
     },
     [storedUser]
@@ -901,6 +911,7 @@ export function SocialFlowHome() {
       },
     };
 
+    let didPublish = false;
     try {
       const res = await fetch('/api/v1/posts', {
         method: 'POST',
@@ -908,20 +919,30 @@ export function SocialFlowHome() {
         headers: buildAuthHeaders(true),
         body: JSON.stringify(payload),
       });
+      if (res.status === 401 || res.status === 403) {
+        clearStoredAuthToken();
+        setStoredUser((prev) => ({ ...prev, token: undefined }));
+        showToast('פג תוקף ההתחברות — יש להתחבר מחדש ב-/login כדי לפרסם לשרת ול-Kafka.', 'error');
+        return;
+      }
       if (res.ok) {
         const saved = (await res.json()) as CreatedPostPayload;
         createdCard = createdPayloadToPostCard(saved, navUser);
       }
+      didPublish = true;
     } catch {
       // Optimistic local prepend preserved
+      didPublish = true;
     } finally {
-      setPosts((prev) => [createdCard, ...prev]);
       setAgentPublishing(false);
-      setIsAgentModalOpen(false);
-      setAgentDraft(null);
-      setAgentTopic('');
-      setAgentLogs([]);
-      showToast('פוסט סוכן ה-AI אושר ופורסם בפיד! 🤖🚀', 'success');
+      if (didPublish) {
+        setPosts((prev) => [createdCard, ...prev]);
+        setIsAgentModalOpen(false);
+        setAgentDraft(null);
+        setAgentTopic('');
+        setAgentLogs([]);
+        showToast('פוסט סוכן ה-AI אושר ופורסם בפיד! 🤖🚀', 'success');
+      }
     }
   };
 
@@ -1147,7 +1168,21 @@ export function SocialFlowHome() {
       />
 
       {/* 3. PostComposerCard (MinIO upload + Polls + Gemini Analyze + POST /api/v1/posts) */}
-      <div ref={composerSectionRef}>
+      <div ref={composerSectionRef} className="space-y-3">
+        {authHydrated && !storedUser.token && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-100">
+            <span className="inline-flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-300 shrink-0" />
+              <span>אינך מחובר כרגע (או שפג תוקף ה-JWT) — פוסטים לא יישלחו לשרת ול-Kafka עד שתתחבר.</span>
+            </span>
+            <Link
+              href="/login"
+              className="rounded-lg bg-amber-400/20 px-3 py-1 font-semibold text-amber-100 hover:bg-amber-400/30 transition-colors"
+            >
+              התחברות / הרשמה
+            </Link>
+          </div>
+        )}
         <PostComposerCard
           currentUser={{
             id: storedUser.userId ?? 1,
@@ -1157,6 +1192,7 @@ export function SocialFlowHome() {
           }}
           authToken={storedUser.token ?? null}
           onPostCreated={handlePostCreated}
+          onAuthRequired={() => setStoredUser((prev) => ({ ...prev, token: undefined }))}
         />
       </div>
 

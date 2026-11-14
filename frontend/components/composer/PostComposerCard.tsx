@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { clearStoredAuthToken, isJwtExpired } from '@/lib/auth';
 import {
   ImagePlus,
   BarChart3,
@@ -78,6 +80,7 @@ export interface PostComposerCardProps {
   defaultExpanded?: boolean;
   placeholder?: string;
   onPostCreated?: (post: CreatedPostPayload) => void;
+  onAuthRequired?: () => void;
   className?: string;
 }
 
@@ -105,6 +108,7 @@ export function PostComposerCard({
   defaultExpanded = false,
   placeholder = 'מה חדש בפיד שלך? שתף רעיון, תובנה טכנולוגית או סקר... (תומך עברית ואנגלית)',
   onPostCreated,
+  onAuthRequired,
   className = '',
 }: PostComposerCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -127,7 +131,12 @@ export function PostComposerCard({
   const [aiInsight, setAiInsight] = useState<AIAnalyzeResult | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'error' | 'info' | 'success'; text: string } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{
+    type: 'error' | 'info' | 'success';
+    text: string;
+    actionHref?: string;
+    actionLabel?: string;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -167,7 +176,7 @@ export function PostComposerCard({
     if (includeContentType) {
       headers['Content-Type'] = 'application/json';
     }
-    if (authToken) {
+    if (authToken && !isJwtExpired(authToken)) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
     return headers;
@@ -420,6 +429,20 @@ export function PostComposerCard({
         setStatusMessage({ type: 'success', text: 'הפוסט פורסם בהצלחה!' });
         return;
       }
+
+      if (res.status === 401 || res.status === 403) {
+        clearStoredAuthToken();
+        onAuthRequired?.();
+        setIsExpanded(true);
+        setStatusMessage({
+          type: 'error',
+          text: 'פג תוקף ההתחברות (או שאינך מחובר). הפוסט לא נשלח לשרת ול-Kafka — יש להתחבר מחדש כדי לפרסם.',
+          actionHref: '/login',
+          actionLabel: 'התחבר מחדש',
+        });
+        return;
+      }
+
       throw new Error(`HTTP ${res.status}`);
     } catch {
       // Fallback callback so UI state updates seamlessly even in offline/mock mode
@@ -794,6 +817,14 @@ export function PostComposerCard({
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
                   )}
                   <span className="flex-1">{statusMessage.text}</span>
+                  {statusMessage.actionHref && statusMessage.actionLabel && (
+                    <Link
+                      href={statusMessage.actionHref}
+                      className="shrink-0 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white font-semibold transition-colors"
+                    >
+                      {statusMessage.actionLabel}
+                    </Link>
+                  )}
                 </div>
               )}
             </motion.div>
