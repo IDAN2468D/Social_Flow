@@ -60,8 +60,6 @@ services:
     plan: free
     autoDeploy: true
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: API_GATEWAY_HOSTPORT
         fromService:
           type: web
