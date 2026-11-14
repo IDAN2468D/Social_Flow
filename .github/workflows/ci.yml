@@ -36,8 +36,8 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build All Microservices with Maven
-        run: mvn clean package -DskipTests=false
+      - name: Run Maven Tests Across All Microservices
+        run: mvn test
 
-      - name: Verify Docker Compose Config
-        run: docker compose config
+      - name: Verify Docker Compose Configuration
+        run: docker compose config -q

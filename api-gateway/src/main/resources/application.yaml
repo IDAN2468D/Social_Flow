@@ -1,6 +1,17 @@
 server:
   port: 8088 # פורט שער הכניסה (API Gateway)
 
+jwt:
+  secret: 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
 spring:
   application:
     name: api-gateway

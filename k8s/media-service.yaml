@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-service
+  labels:
+    app: media-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-service
+  template:
+    metadata:
+      labels:
+        app: media-service
+    spec:
+      containers:
+        - name: media-service
+          image: socialflow/media-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          env:
+            - name: AWS_S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: socialflow-config
+                  key: S3_ENDPOINT
+            - name: AWS_S3_PUBLIC_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: socialflow-config
+                  key: S3_ENDPOINT
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: socialflow-config
+                  key: S3_BUCKET
+            - name: AWS_ACCESS_KEY_ID
+              value: "minioadmin"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "minioadminpassword"
+            - name: JWT_SECRET
+              valueFrom:
+                configMapKeyRef:
+                  name: socialflow-config
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-service
+  labels:
+    app: media-service
+spec:
+  ports:
+    - port: 8084
+      targetPort: 8084
+  selector:
+    app: media-service
