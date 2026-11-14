@@ -1,0 +1,268 @@
+# ==============================================================================
+# SocialFlow — Render Blueprint (Infrastructure as Code)
+# Deploy all 8 microservices + Managed PostgreSQL in one click:
+# https://render.com/deploy?repo=https://github.com/IDAN2468D/Social_Flow
+# ==============================================================================
+
+databases:
+  - name: socialflow-postgres
+    databaseName: socialflow_db
+    user: socialflow
+    plan: free
+
+envVarGroups:
+  - name: socialflow-shared-env
+    envVars:
+      # Auto-generated cryptographically secure JWT secret shared across all services
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Gemini API (enter in Render Dashboard during Blueprint setup)
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+
+      # External Kafka (e.g. Upstash Kafka / Redpanda / Confluent Cloud)
+      # Flip KAFKA_AUTO_STARTUP to "true" once SPRING_KAFKA_BOOTSTRAP_SERVERS is configured
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_AUTO_STARTUP
+        value: "false"
+
+      # External Elasticsearch 8 (e.g. Elastic Cloud)
+      - key: SPRING_ELASTICSEARCH_URIS
+        sync: false
+
+      # External S3 / Cloudflare R2 / MinIO Object Storage for Media Service
+      - key: AWS_S3_ENDPOINT
+        sync: false
+      - key: AWS_S3_PUBLIC_ENDPOINT
+        sync: false
+      - key: AWS_S3_BUCKET
+        value: socialflow-media
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+services:
+  # 1. Next.js 15 Frontend Web App (Public Entry Point)
+  - type: web
+    name: socialflow-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_GATEWAY_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-api-gateway
+          property: hostport
+
+  # 2. Spring Cloud API Gateway
+  - type: web
+    name: socialflow-api-gateway
+    runtime: docker
+    dockerfilePath: ./api-gateway/Dockerfile
+    dockerContext: ./api-gateway
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: socialflow-shared-env
+      - key: USER_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-user-service
+          property: hostport
+      - key: POST_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-post-service
+          property: hostport
+      - key: FEED_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-feed-service
+          property: hostport
+      - key: MEDIA_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-media-service
+          property: hostport
+      - key: NOTIFICATION_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-notification-service
+          property: hostport
+      - key: AI_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-ai-service
+          property: hostport
+
+  # 3. User & Auth Service (Spring Boot 3)
+  - type: web
+    name: socialflow-user-service
+    runtime: docker
+    dockerfilePath: ./user-service/Dockerfile
+    dockerContext: ./user-service
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: socialflow-shared-env
+      - key: DB_HOST
+        fromDatabase:
+          name: socialflow-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: socialflow-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: socialflow-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: socialflow-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: socialflow-postgres
+          property: password
+
+  # 4. Post, Poll & Reactions Service (Spring Boot 3)
+  - type: web
+    name: socialflow-post-service
+    runtime: docker
+    dockerfilePath: ./post-service/Dockerfile
+    dockerContext: ./post-service
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: socialflow-shared-env
+      - key: DB_HOST
+        fromDatabase:
+          name: socialflow-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: socialflow-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: socialflow-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: socialflow-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: socialflow-postgres
+          property: password
+
+  # 5. Feed & Elasticsearch Search Service (Spring Boot 3)
+  - type: web
+    name: socialflow-feed-service
+    runtime: docker
+    dockerfilePath: ./feed-service/Dockerfile
+    dockerContext: ./feed-service
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: socialflow-shared-env
+      - key: DB_HOST
+        fromDatabase:
+          name: socialflow-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: socialflow-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: socialflow-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: socialflow-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: socialflow-postgres
+          property: password
+
+  # 6. Media & S3 / MinIO Presigned URL Service (Spring Boot 3)
+  - type: web
+    name: socialflow-media-service
+    runtime: docker
+    dockerfilePath: ./media-service/Dockerfile
+    dockerContext: ./media-service
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: socialflow-shared-env
+
+  # 7. Real-Time Notifications & WebSocket STOMP Service (Spring Boot 3)
+  - type: web
+    name: socialflow-notification-service
+    runtime: docker
+    dockerfilePath: ./notification-service/Dockerfile
+    dockerContext: ./notification-service
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: socialflow-shared-env
+      - key: DB_HOST
+        fromDatabase:
+          name: socialflow-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: socialflow-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: socialflow-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: socialflow-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: socialflow-postgres
+          property: password
+
+  # 8. AI Agent (LangGraph) & RAG Service (FastAPI)
+  - type: web
+    name: socialflow-ai-service
+    runtime: docker
+    dockerfilePath: ./ai-service/Dockerfile
+    dockerContext: ./ai-service
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: socialflow-shared-env
+      - key: FEED_SERVICE_HOSTPORT
+        fromService:
+          type: web
+          name: socialflow-feed-service
+          property: hostport

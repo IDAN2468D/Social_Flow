@@ -1,5 +1,5 @@
 server:
-  port: 8088 # פורט שער הכניסה (API Gateway)
+  port: ${PORT:8088} # פורט שער הכניסה (API Gateway)
 
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
@@ -34,52 +34,52 @@ spring:
       routes:
         # 1. User & Auth Service (8081)
         - id: user-service-auth
-          uri: ${USER_SERVICE_URI:http://localhost:8081}
+          uri: ${USER_SERVICE_URI:http://${USER_SERVICE_HOSTPORT:localhost:8081}}
           predicates:
             - Path=/api/auth/**
 
         - id: user-service-users
-          uri: ${USER_SERVICE_URI:http://localhost:8081}
+          uri: ${USER_SERVICE_URI:http://${USER_SERVICE_HOSTPORT:localhost:8081}}
           predicates:
             - Path=/api/users/**
 
         # 2. Post Service (8082)
         - id: post-service
-          uri: ${POST_SERVICE_URI:http://localhost:8082}
+          uri: ${POST_SERVICE_URI:http://${POST_SERVICE_HOSTPORT:localhost:8082}}
           predicates:
             - Path=/api/v1/posts/**,/api/posts/**
 
         # 3. Feed Service (8083)
         - id: feed-service
-          uri: ${FEED_SERVICE_URI:http://localhost:8083}
+          uri: ${FEED_SERVICE_URI:http://${FEED_SERVICE_HOSTPORT:localhost:8083}}
           predicates:
             - Path=/api/v1/feed/**,/api/feed/**
 
         # 4. Search Service (8083)
         - id: feed-service-search
-          uri: ${FEED_SERVICE_URI:http://localhost:8083}
+          uri: ${FEED_SERVICE_URI:http://${FEED_SERVICE_HOSTPORT:localhost:8083}}
           predicates:
             - Path=/api/v1/search/**,/api/search/**
 
         # 5. Media Service (8084) - העלאת קבצים ו-S3
         - id: media-service
-          uri: ${MEDIA_SERVICE_URI:http://localhost:8084}
+          uri: ${MEDIA_SERVICE_URI:http://${MEDIA_SERVICE_HOSTPORT:localhost:8084}}
           predicates:
             - Path=/api/v1/media/**
 
         # 6. Notification Service (8085) - REST
         - id: notification-service
-          uri: ${NOTIFICATION_SERVICE_URI:http://localhost:8085}
+          uri: ${NOTIFICATION_SERVICE_URI:http://${NOTIFICATION_SERVICE_HOSTPORT:localhost:8085}}
           predicates:
             - Path=/api/v1/notifications/**
 
         # 7. Notification Service (8085) - WebSocket / SockJS
         - id: notification-service-ws
-          uri: ${NOTIFICATION_SERVICE_WS_URI:${NOTIFICATION_SERVICE_URI:http://localhost:8085}}
+          uri: ${NOTIFICATION_SERVICE_WS_URI:${NOTIFICATION_SERVICE_URI:ws://${NOTIFICATION_SERVICE_HOSTPORT:localhost:8085}}}
           predicates:
             - Path=/ws/**
         # 8. AI Service (8086) - Gemini 3.5 Flash-Lite
         - id: ai-service
-          uri: ${AI_SERVICE_URI:http://localhost:8086}
+          uri: ${AI_SERVICE_URI:http://${AI_SERVICE_HOSTPORT:localhost:8086}}
           predicates:
             - Path=/api/v1/ai/**

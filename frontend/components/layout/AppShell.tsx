@@ -158,10 +158,10 @@ export function AppShell({
         </div>
       </header>
 
-      {/* Desktop 3-Zone Bento Grid: 260px | minmax(0, 640px) | 340px */}
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 py-5 pb-28 lg:pb-10">
-        <div className="grid grid-cols-1 justify-center gap-6 lg:grid-cols-[260px_minmax(0,640px)] xl:grid-cols-[260px_minmax(0,640px)_340px]">
-          {/* Zone 1: Left Navigation Rail (260px) */}
+      {/* Desktop 3-Zone Bento Grid: 256px | minmax(0, 660px) | 336px */}
+      <div className="relative z-10 mx-auto w-full max-w-[1360px] px-4 sm:px-6 lg:px-8 py-6 pb-28 lg:pb-12">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[256px_minmax(0,1fr)] xl:grid-cols-[256px_minmax(0,660px)_336px] xl:justify-center">
+          {/* Zone 1: Left Navigation Rail (256px) */}
           <aside className="hidden lg:block">
             {leftRail !== undefined ? (
               leftRail
@@ -175,8 +175,8 @@ export function AppShell({
             )}
           </aside>
 
-          {/* Zone 2: Center Single-Column Feed Stream (minmax(0, 640px)) */}
-          <main className="min-w-0 w-full max-w-[640px] mx-auto space-y-4">
+          {/* Zone 2: Center Single-Column Feed Stream (minmax(0, 660px)) */}
+          <main className="min-w-0 w-full max-w-[660px] mx-auto space-y-5">
             {children}
           </main>
 

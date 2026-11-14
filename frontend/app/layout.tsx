@@ -24,7 +24,7 @@ export default function RootLayout({
       </head>
       <body
         data-bilingual="he-en"
-        className="w-full min-h-screen flex flex-col items-center bg-[#090A0F] text-[#F8FAFC] antialiased selection:bg-indigo-500/30 selection:text-indigo-200"
+        className="min-h-screen w-full bg-[#090A0F] text-[#F8FAFC] antialiased selection:bg-indigo-500/30 selection:text-indigo-200"
       >
         {/* Ambient Obsidian Liquid Glass Glow Orbs */}
         <div className="ambient-glow-canvas" aria-hidden="true">
@@ -33,7 +33,7 @@ export default function RootLayout({
           <div className="bg-orb orb-3" />
         </div>
 
-        <div className="w-full flex flex-col items-center min-h-screen relative z-10">
+        <div className="min-h-screen w-full relative z-10">
           {children}
         </div>
       </body>

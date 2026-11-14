@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+import os
 import httpx
 from app.config import config
 from app.gemini_client import gemini_client
@@ -70,8 +71,13 @@ async def ask_feed(req: AskFeedRequest):
     # If no posts provided directly in the request, try fetching recent feed from feed-service or post-service
     if not posts_context:
         try:
+            feed_uri = os.getenv("FEED_SERVICE_URI") or (
+                f"http://{os.getenv('FEED_SERVICE_HOSTPORT')}"
+                if os.getenv("FEED_SERVICE_HOSTPORT")
+                else "http://feed-service:8083"
+            )
             async with httpx.AsyncClient(timeout=4.0) as client:
-                res = await client.get("http://feed-service:8083/api/v1/feed/for-you?userId=1&page=0&size=20")
+                res = await client.get(f"{feed_uri}/api/v1/feed/for-you?userId=1&page=0&size=20")
                 if res.status_code == 200:
                     data = res.json()
                     posts_context = data.get("content", [])

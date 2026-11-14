@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 8086
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8086"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8086}"]
