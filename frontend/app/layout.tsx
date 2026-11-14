@@ -2,8 +2,9 @@ import './globals.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'SocialFlow — Next.js 15 & AI Multi-Agent',
-  description: 'SocialFlow — רשת חברתית מודרנית מהדור הבא עם סוכני AI אוטונומיים, סטוריז, ופידים חיים',
+  title: 'SocialFlow — Obsidian Liquid Glass & AI Social Network',
+  description:
+    'SocialFlow — רשת חברתית מהדור הבא בעיצוב Obsidian Liquid Glass עם פידים חכמים, סוכני AI אוטונומיים, חיפוש Elasticsearch וסטוריז בזמן אמת | Next-Gen Bilingual AI Social Network',
 };
 
 export default function RootLayout({
@@ -12,19 +13,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="he" dir="rtl">
+    <html lang="he" dir="rtl" className="dark">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="w-full min-h-screen flex flex-col items-center">
-        <div className="bg-orb orb-1"></div>
-        <div className="bg-orb orb-2"></div>
-        <div className="bg-orb orb-3"></div>
+      <body
+        data-bilingual="he-en"
+        className="w-full min-h-screen flex flex-col items-center bg-[#090A0F] text-[#F8FAFC] antialiased selection:bg-indigo-500/30 selection:text-indigo-200"
+      >
+        {/* Ambient Obsidian Liquid Glass Glow Orbs */}
+        <div className="ambient-glow-canvas" aria-hidden="true">
+          <div className="bg-orb orb-1" />
+          <div className="bg-orb orb-2" />
+          <div className="bg-orb orb-3" />
+        </div>
+
         <div className="w-full flex flex-col items-center min-h-screen relative z-10">
           {children}
         </div>

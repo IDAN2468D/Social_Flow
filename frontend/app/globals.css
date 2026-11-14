@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+@theme {
+  --color-obsidian: #090A0F;
+  --color-obsidian-bento: rgba(18, 21, 33, 0.72);
+  --color-electric-indigo: #6366F1;
+  --color-cyber-violet: #8B5CF6;
+  --color-emerald-pulse: #10B981;
+  --color-rose-like: #F43F5E;
+  --font-sans: "Inter", "Heebo", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 /* Hide scrollbar for Chrome, Safari, Opera, Edge, and Firefox */
 .no-scrollbar::-webkit-scrollbar {
   display: none !important;
@@ -44,37 +55,47 @@
    ========================================================================== */
 
 :root {
-  /* Color Tokens */
-  --bg-primary: #07090e;
+  /* Color Tokens — Obsidian Liquid Glass 2026 */
+  --bg-primary: #090A0F;
+  --bg-obsidian: #090A0F;
   --bg-secondary: #0d111a;
-  --bg-surface: rgba(19, 24, 38, 0.72);
+  --bg-bento: rgba(18, 21, 33, 0.72);
+  --bg-bento-hover: rgba(24, 28, 44, 0.84);
+  --bg-surface: rgba(18, 21, 33, 0.72);
   --bg-surface-hover: rgba(29, 36, 56, 0.85);
-  --bg-card: rgba(16, 21, 34, 0.65);
-  --bg-glass-overlay: rgba(8, 11, 18, 0.8);
+  --bg-card: rgba(18, 21, 33, 0.72);
+  --bg-glass-overlay: rgba(9, 10, 15, 0.82);
 
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --border-glass-hover: rgba(99, 102, 241, 0.4);
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-focus: rgba(99, 102, 241, 0.6);
   --border-glow: rgba(139, 92, 246, 0.4);
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-inverse: #07090e;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-inverse: #090A0F;
 
   /* Vibrant Accents */
-  --accent-primary: #6366f1;       /* Indigo */
-  --accent-secondary: #8b5cf6;     /* Violet */
-  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+  --accent-indigo: #6366F1;        /* Electric Indigo */
+  --accent-violet: #8B5CF6;        /* Cyber Violet */
+  --accent-emerald: #10B981;       /* Emerald Live Pulse */
+  --accent-rose: #F43F5E;          /* Rose Like Accent */
+  --accent-primary: #6366F1;       /* Indigo */
+  --accent-secondary: #8B5CF6;     /* Violet */
+  --accent-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 55%, #EC4899 100%);
   --accent-glow: rgba(99, 102, 241, 0.35);
 
-  --success: #10b981;
+  --success: #10B981;
   --success-glow: rgba(16, 185, 129, 0.25);
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --info: #06b6d4;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #06B6D4;
 
   /* Typography */
-  --font-main: 'Heebo', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-main: 'Inter', 'Heebo', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Layout & Spacing */
   --nav-height: 72px;
@@ -3077,4 +3098,153 @@ body {
   max-width: 720px !important;
   padding: 34px !important;
   border-radius: 28px !important;
+}
+
+
+/* ==========================================================================
+   Obsidian Liquid Glass 2026 — Foundation Tokens, Bento Tiles & Utilities
+   ========================================================================== */
+
+.ambient-glow-canvas {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-bento {
+  background: var(--bg-bento);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-glass);
+  border-radius: 20px;
+  box-shadow:
+    0 12px 36px -12px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-bento-interactive:hover {
+  background: var(--bg-bento-hover);
+  border-color: var(--border-glass-hover);
+  box-shadow:
+    0 18px 42px -12px rgba(99, 102, 241, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.glass-dock {
+  background: rgba(9, 10, 15, 0.78);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 20px 50px -12px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.font-mono-metric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bilingual Automatic Text Direction (Hebrew RTL + English LTR side-by-side) */
+.dir-auto,
+[dir="auto"] {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+/* Custom Obsidian Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090A0F;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.55);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.24) #090A0F;
+}
+
+/* Micro-interaction & Skeleton Animations (150ms - 250ms Spring & Shimmer) */
+@keyframes obsidianShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes springPop {
+  0% {
+    transform: scale(0.85);
+  }
+  55% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeUpIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseLiveRing {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(16, 185, 129, 0);
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(99, 102, 241, 0.12) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: obsidianShimmer 1.6s infinite linear;
+}
+
+.animate-spring-pop {
+  animation: springPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-fade-up {
+  animation: fadeUpIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-pulse-live {
+  animation: pulseLiveRing 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }

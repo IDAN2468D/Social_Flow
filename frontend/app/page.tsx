@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { SocialDashboard } from '@/components/social/SocialDashboard';
+import { SocialFlowHome } from '@/components/feed/SocialFlowHome';
 
 export default function HomePage() {
-  return <SocialDashboard />;
+  return <SocialFlowHome />;
 }
