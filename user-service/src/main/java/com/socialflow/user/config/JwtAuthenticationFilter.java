@@ -34,8 +34,8 @@ public class JwtAuthenticationFilter implements Filter {
 
         String path = request.getRequestURI();
 
-        // דילוג על נתיבי אימות (הרשמה והתחברות) ושגיאות
-        if (path.startsWith("/api/auth") || path.startsWith("/error")) {
+        // דילוג על נתיבי אימות (הרשמה והתחברות), בדיקת בריאות (Actuator) ושגיאות
+        if (path.startsWith("/api/auth") || path.startsWith("/actuator") || path.startsWith("/error")) {
             filterChain.doFilter(request, response);
             return;
         }

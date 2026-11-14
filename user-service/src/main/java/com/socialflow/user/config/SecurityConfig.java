@@ -46,9 +46,10 @@ public class SecurityConfig {
                         // 1. אישור לניתוב פנימי ולשגיאות - מונע 403 במקרה של ניתוב פנימי
                         .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
 
-                        // 2. אישור מפורש לנתיבי ההרשמה, ההתחברות והשגיאות
+                        // 2. אישור מפורש לנתיבי ההרשמה, ההתחברות, Health והשגיאות
                         .requestMatchers(
                                 new AntPathRequestMatcher("/error"),
+                                new AntPathRequestMatcher("/actuator/**"),
                                 new AntPathRequestMatcher("/api/auth/**"),
                                 new AntPathRequestMatcher("/api/auth/register"),
                                 new AntPathRequestMatcher("/api/auth/login")
