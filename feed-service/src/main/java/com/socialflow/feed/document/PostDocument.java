@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
-@Document(indexName = "posts")
+@Document(indexName = "posts", createIndex = false)
 @Getter
 @Setter
 @NoArgsConstructor

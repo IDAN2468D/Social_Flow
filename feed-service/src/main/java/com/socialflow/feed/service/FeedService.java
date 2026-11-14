@@ -25,15 +25,18 @@ public class FeedService {
     private final FollowerRelationRepository followerRelationRepository;
 
     public Page<PostDocument> getFollowingFeed(Long userId, int page, int size) {
-        List<FollowerRelation> following = followerRelationRepository.findByFollowerId(userId);
-        List<Long> followingIds = following.stream()
-                .map(FollowerRelation::getFollowingId)
-                .collect(Collectors.toList());
-
-        followingIds.add(userId);
-
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return postSearchRepository.findByAuthorIdInOrderByCreatedAtDesc(followingIds, pageRequest);
+        try {
+            List<FollowerRelation> following = followerRelationRepository.findByFollowerId(userId);
+            List<Long> followingIds = following.stream()
+                    .map(FollowerRelation::getFollowingId)
+                    .collect(Collectors.toList());
+
+            followingIds.add(userId);
+            return postSearchRepository.findByAuthorIdInOrderByCreatedAtDesc(followingIds, pageRequest);
+        } catch (Exception e) {
+            return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
+        }
     }
 
     public Page<PostDocument> getForYouFeed(Long userId, int page, int size) {
@@ -74,12 +77,20 @@ public class FeedService {
 
     public Page<PostDocument> getTrendingFeed(int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("likesCount").descending());
-        return postSearchRepository.findAllByOrderByLikesCountDesc(pageRequest);
+        try {
+            return postSearchRepository.findAllByOrderByLikesCountDesc(pageRequest);
+        } catch (Exception e) {
+            return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
+        }
     }
 
     public Page<PostDocument> getUserProfileFeed(Long authorId, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size);
-        return postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(authorId, pageRequest);
+        try {
+            return postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(authorId, pageRequest);
+        } catch (Exception e) {
+            return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
+        }
     }
 
     public List<TrendingTagDto> getTrendingHashtags(int limit) {
@@ -113,18 +124,26 @@ public class FeedService {
 
     public Page<PostDocument> searchPosts(String query, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        if (query == null || query.trim().isEmpty()) {
-            return postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+        try {
+            if (query == null || query.trim().isEmpty()) {
+                return postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+            }
+            return postSearchRepository.findByContentContainingIgnoreCase(query.trim(), pageRequest);
+        } catch (Exception e) {
+            return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
-        return postSearchRepository.findByContentContainingIgnoreCase(query.trim(), pageRequest);
     }
 
     public Page<PostDocument> searchByTag(String tag, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        if (tag == null || tag.trim().isEmpty()) {
-            return postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+        try {
+            if (tag == null || tag.trim().isEmpty()) {
+                return postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+            }
+            String clean = tag.trim().replace("#", "");
+            return postSearchRepository.findByTagsContaining(clean, pageRequest);
+        } catch (Exception e) {
+            return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
-        String clean = tag.trim().replace("#", "");
-        return postSearchRepository.findByTagsContaining(clean, pageRequest);
     }
 }

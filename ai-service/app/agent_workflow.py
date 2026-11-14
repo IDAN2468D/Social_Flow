@@ -3,6 +3,7 @@ SocialFlow LangGraph Multi-Step Agent Workflow
 Orchestrates autonomous content creation, trend discovery, content moderation, and human-in-the-loop publishing.
 """
 
+import os
 from typing import TypedDict, List, Dict, Any, Optional
 import httpx
 from langgraph.graph import StateGraph, START, END
@@ -23,7 +24,11 @@ class AgentPostState(TypedDict):
     logs: List[str]
     error: Optional[str]
 
-GATEWAY_BASE = "http://localhost:8088"
+GATEWAY_BASE = (
+    os.getenv("API_GATEWAY_URL")
+    or (f"http://{os.getenv('API_GATEWAY_HOSTPORT')}" if os.getenv("API_GATEWAY_HOSTPORT") else "")
+    or "http://localhost:8088"
+)
 
 async def research_trends_node(state: AgentPostState) -> Dict[str, Any]:
     """Node 1: Researches recent trending topics on SocialFlow to ground the post."""
