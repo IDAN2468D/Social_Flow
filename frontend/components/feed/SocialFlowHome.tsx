@@ -1088,7 +1088,7 @@ export function SocialFlowHome() {
           </Link>
         </div>
 
-        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-0.5">
+        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-0.5">
           {STORIES_STRIP.map((story, idx) => (
             <Link
               key={story.id}
@@ -1140,7 +1140,6 @@ export function SocialFlowHome() {
         onTabChange={handleTabChange}
         activeHashtag={selectedTag}
         onClearHashtag={() => handleSelectTag(null)}
-        showEnglishSublabels
         rightSlot={
           <div className="flex items-center gap-1.5">
             <button
@@ -1148,8 +1147,8 @@ export function SocialFlowHome() {
               onClick={() => {
                 setIsRagModalOpen(true);
               }}
-              title="שאל את AI RAG על הפיד"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#8B5CF6]/35 bg-[#8B5CF6]/15 px-2.5 py-1.5 text-xs font-semibold text-violet-200 hover:bg-[#8B5CF6]/25 transition-colors cursor-pointer"
+              aria-label="שאל את AI RAG על הפיד"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#8B5CF6]/35 bg-[#8B5CF6]/15 px-2.5 py-1.5 text-xs font-semibold text-violet-200 hover:bg-[#8B5CF6]/25 transition-colors whitespace-nowrap cursor-pointer"
             >
               <Sparkles className="h-3.5 w-3.5 text-[#8B5CF6]" />
               <span className="hidden sm:inline">שאל AI</span>
