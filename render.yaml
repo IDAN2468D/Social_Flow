@@ -334,6 +334,9 @@ services:
     dockerContext: ./kafka
     plan: starter
     autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "9092"
 
   # 10. Kafka UI (Visual Event & Topic Explorer)
   - type: web
@@ -344,6 +347,8 @@ services:
     plan: free
     autoDeploy: true
     envVars:
+      - key: PORT
+        value: "8080"
       - key: KAFKA_CLUSTERS_0_NAME
         value: socialflow-cluster
       - key: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
