@@ -1,6 +1,12 @@
-# Start entire SocialFlow ecosystem in Docker
+param(
+    [ValidateSet("backend", "infra", "kafka", "all")]
+    [string]$Profile = "backend"
+)
+
+# Start SocialFlow ecosystem in Docker using resource-optimized profiles
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "   SocialFlow - Docker Stack Launcher    " -ForegroundColor Yellow
+Write-Host "   Active Profile: $Profile" -ForegroundColor Green
 Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Stop local processes if they occupy the ports
@@ -21,9 +27,9 @@ foreach ($p in $ports) {
 
 Start-Sleep -Seconds 1
 
-# 2. Launch Docker Compose
-Write-Host "`nStarting all SocialFlow containers via Docker Compose..." -ForegroundColor Cyan
-docker compose up -d
+# 2. Launch Docker Compose with selected profile
+Write-Host "`nStarting SocialFlow containers (profile: $Profile)..." -ForegroundColor Cyan
+docker compose --profile $Profile up -d
 
 Write-Host "`nWaiting for services to become healthy..." -ForegroundColor Cyan
 Start-Sleep -Seconds 5

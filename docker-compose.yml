@@ -1,11 +1,13 @@
 services:
   # =========================================================================
-  # 1. תשתית נתונים, הודעות ואחסון (Infrastructure)
+  # 1. תשתית נתונים, הודעות ואחסון (Infrastructure — מותאם לצריכת RAM נמוכה)
   # =========================================================================
   postgres:
     image: postgres:16-alpine
     container_name: socialflow-postgres
+    profiles: ["infra", "backend", "all"]
     restart: unless-stopped
+    mem_limit: 256m
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -26,7 +28,9 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: socialflow-kafka
+    profiles: ["kafka", "infra", "backend", "all"]
     restart: unless-stopped
+    mem_limit: 512m
     ports:
       - "9095:9092"
     environment:
@@ -43,6 +47,7 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_HEAP_OPTS: '-Xms256m -Xmx320m'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     networks:
       - socialflow-net
@@ -50,13 +55,16 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: socialflow-kafka-ui
+    profiles: ["kafka", "infra", "backend", "all"]
     restart: unless-stopped
+    mem_limit: 256m
     ports:
       - "8080:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: socialflow-cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       DYNAMIC_CONFIG_ENABLED: 'true'
+      JAVA_OPTS: '-XX:+UseSerialGC -Xms64m -Xmx160m'
     depends_on:
       - kafka
     networks:
@@ -65,11 +73,14 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
     container_name: socialflow-elasticsearch
+    profiles: ["infra", "backend", "all"]
     restart: unless-stopped
+    mem_limit: 640m
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.ml.enabled=false
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
     ports:
       - "9205:9200"
     volumes:
@@ -80,8 +91,10 @@ services:
   minio:
     image: minio/minio:latest
     container_name: socialflow-minio
+    profiles: ["infra", "backend", "all"]
     restart: always
     user: root
+    mem_limit: 256m
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadminpassword
@@ -95,17 +108,20 @@ services:
       - socialflow-net
 
   # =========================================================================
-  # 2. מיקרו-סרוויסים (Backend Microservices)
+  # 2. מיקרו-סרוויסים (Java Spring Boot 3 Backend Microservices)
   # =========================================================================
   user-service:
     build:
       context: ./user-service
       dockerfile: Dockerfile
     container_name: socialflow-user-service
+    profiles: ["backend", "all"]
     restart: unless-stopped
+    mem_limit: 288m
     ports:
       - "8081:8081"
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/socialflow_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
@@ -121,10 +137,13 @@ services:
       context: ./post-service
       dockerfile: Dockerfile
     container_name: socialflow-post-service
+    profiles: ["backend", "all"]
     restart: unless-stopped
+    mem_limit: 288m
     ports:
       - "8082:8082"
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/post_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
@@ -140,10 +159,13 @@ services:
       context: ./feed-service
       dockerfile: Dockerfile
     container_name: socialflow-feed-service
+    profiles: ["backend", "all"]
     restart: unless-stopped
+    mem_limit: 288m
     ports:
       - "8083:8083"
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/feed_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
@@ -162,10 +184,13 @@ services:
       context: ./media-service
       dockerfile: Dockerfile
     container_name: socialflow-media-service
+    profiles: ["backend", "all"]
     restart: on-failure
+    mem_limit: 288m
     ports:
       - "8084:8084"
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m"
       SERVER_PORT: 8084
       AWS_S3_ENDPOINT: http://minio:9000
       AWS_S3_PUBLIC_ENDPOINT: http://localhost:9000
@@ -183,10 +208,13 @@ services:
       context: ./notification-service
       dockerfile: Dockerfile
     container_name: socialflow-notification-service
+    profiles: ["backend", "all"]
     restart: unless-stopped
+    mem_limit: 288m
     ports:
       - "8085:8085"
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m"
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
       SPRING_DATASOURCE_USERNAME: postgres
@@ -205,10 +233,13 @@ services:
       context: ./api-gateway
       dockerfile: Dockerfile
     container_name: socialflow-api-gateway
+    profiles: ["backend", "all"]
     restart: unless-stopped
+    mem_limit: 288m
     ports:
       - "8088:8088"
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m"
       USER_SERVICE_URI: http://user-service:8081
       POST_SERVICE_URI: http://post-service:8082
       FEED_SERVICE_URI: http://feed-service:8083
@@ -223,19 +254,20 @@ services:
       - feed-service
       - media-service
       - notification-service
-      - ai-service
     networks:
       - socialflow-net
 
   # =========================================================================
-  # 3. שירות בינה מלאכותית (AI Microservice)
+  # 3. שירות בינה מלאכותית (AI Microservice — אופציונלי עם --profile ai / all)
   # =========================================================================
   ai-service:
     build:
       context: ./ai-service
       dockerfile: Dockerfile
     container_name: socialflow-ai-service
+    profiles: ["ai", "all"]
     restart: unless-stopped
+    mem_limit: 256m
     ports:
       - "8086:8086"
     environment:
