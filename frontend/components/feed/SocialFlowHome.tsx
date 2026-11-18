@@ -467,6 +467,12 @@ export function SocialFlowHome() {
     }
   }, []);
 
+  useEffect(() => {
+    if (authHydrated && !storedUser.token) {
+      router.replace('/login');
+    }
+  }, [authHydrated, storedUser.token, router]);
+
   const navUser: NavUserSummary = useMemo(
     () => ({
       name: storedUser.fullName || storedUser.username || 'עידן קזם',
@@ -1280,6 +1286,21 @@ export function SocialFlowHome() {
     );
   };
 
+  if (!authHydrated || !storedUser.token) {
+    return (
+      <div className="min-h-screen w-full bg-[#090A0F] text-[#F8FAFC] flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-[#121521]/72 backdrop-blur-xl px-8 py-7 shadow-[0_24px_60px_-15px_rgba(0,0,0,0.65)]">
+          <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white shadow-[0_0_24px_rgba(99,102,241,0.5)] animate-pulse">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-semibold text-slate-200">
+            {!authHydrated ? 'טוען את סביבת SocialFlow...' : 'מעביר למסך ההתחברות...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AppShell
       activePath="/"
@@ -1434,20 +1455,6 @@ export function SocialFlowHome() {
 
       {/* 3. PostComposerCard (MinIO upload + Polls + Gemini Analyze + POST /api/v1/posts) */}
       <div ref={composerSectionRef} className="space-y-3">
-        {authHydrated && !storedUser.token && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-100">
-            <span className="inline-flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-300 shrink-0" />
-              <span>אינך מחובר כרגע (או שפג תוקף ה-JWT) — פוסטים לא יישלחו לשרת ול-Kafka עד שתתחבר.</span>
-            </span>
-            <Link
-              href="/login"
-              className="rounded-lg bg-amber-400/20 px-3 py-1 font-semibold text-amber-100 hover:bg-amber-400/30 transition-colors"
-            >
-              התחברות / הרשמה
-            </Link>
-          </div>
-        )}
         <PostComposerCard
           currentUser={{
             id: storedUser.userId ?? 1,
