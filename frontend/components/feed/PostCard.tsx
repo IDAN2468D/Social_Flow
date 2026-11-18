@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BadgeCheck,
@@ -19,7 +19,65 @@ import {
   CornerDownRight,
   ExternalLink,
   CheckCircle2,
+  Trash2,
+  Send,
+  Quote,
+  SmilePlus,
 } from 'lucide-react';
+
+export type ReactionTypeValue =
+  | 'LIKE'
+  | 'LOVE'
+  | 'CELEBRATE'
+  | 'SUPPORT'
+  | 'INSIGHTFUL'
+  | 'FUNNY';
+
+export interface ReactionOption {
+  type: ReactionTypeValue;
+  emoji: string;
+  label: string;
+  activeClass: string;
+}
+
+export const POST_REACTIONS: ReactionOption[] = [
+  {
+    type: 'LIKE',
+    emoji: '❤️',
+    label: 'אהבתי',
+    activeClass: 'text-[#F43F5E] bg-[#F43F5E]/15 border border-[#F43F5E]/35',
+  },
+  {
+    type: 'LOVE',
+    emoji: '😍',
+    label: 'מאוהב',
+    activeClass: 'text-pink-300 bg-pink-500/15 border border-pink-400/35',
+  },
+  {
+    type: 'CELEBRATE',
+    emoji: '🎉',
+    label: 'חגיגה',
+    activeClass: 'text-amber-300 bg-amber-500/15 border border-amber-400/35',
+  },
+  {
+    type: 'SUPPORT',
+    emoji: '🙌',
+    label: 'תמיכה',
+    activeClass: 'text-[#10B981] bg-[#10B981]/15 border border-[#10B981]/35',
+  },
+  {
+    type: 'INSIGHTFUL',
+    emoji: '💡',
+    label: 'מבריק',
+    activeClass: 'text-indigo-300 bg-[#6366F1]/20 border border-[#6366F1]/40',
+  },
+  {
+    type: 'FUNNY',
+    emoji: '😂',
+    label: 'מצחיק',
+    activeClass: 'text-cyan-300 bg-cyan-500/15 border border-cyan-400/35',
+  },
+];
 
 export interface PostPollOptionData {
   id: number;
@@ -57,6 +115,7 @@ export interface PostCardData {
   authorAvatar?: string;
   authorVerified?: boolean;
   content: string;
+  quoteComment?: string | null;
   mediaUrls?: string[];
   tags?: string[];
   createdAt: string;
@@ -65,6 +124,8 @@ export interface PostCardData {
   commentCount?: number;
   repostsCount?: number;
   isLiked?: boolean;
+  userReaction?: ReactionTypeValue | null;
+  reactionCounts?: Record<string, number>;
   isBookmarked?: boolean;
   isReposted?: boolean;
   isPinned?: boolean;
@@ -88,8 +149,20 @@ export interface PostCardProps {
   onAuthorClick?: (username: string) => void;
   onCommentClick?: (postId: number | string) => void;
   onLikeChange?: (postId: number | string, liked: boolean, likesCount: number) => void;
-  onRepost?: (postId: number | string) => void;
+  onReactionChange?: (
+    postId: number | string,
+    userReaction: ReactionTypeValue | null,
+    likesCount: number,
+    reactionCounts?: Record<string, number>
+  ) => void;
+  onRepost?: (
+    postId: number | string,
+    quoteComment?: string,
+    createdRepost?: PostCardData
+  ) => void;
   onBookmarkChange?: (postId: number | string, bookmarked: boolean) => void;
+  onPinChange?: (postId: number | string, pinned: boolean) => void;
+  onDeletePost?: (postId: number | string) => void;
   onShare?: (postId: number | string) => void;
   onPollVoted?: (postId: number | string, updatedPoll: PostPollData) => void;
   className?: string;
@@ -118,17 +191,40 @@ export function PostCard({
   onAuthorClick,
   onCommentClick,
   onLikeChange,
+  onReactionChange,
   onRepost,
   onBookmarkChange,
+  onPinChange,
+  onDeletePost,
   onShare,
   onPollVoted,
   className = '',
 }: PostCardProps) {
-  const [liked, setLiked] = useState<boolean>(Boolean(post.isLiked));
+  const resolveInitialReaction = (p: PostCardData): ReactionTypeValue | null => {
+    if (p.userReaction !== undefined) return p.userReaction;
+    return p.isLiked ? 'LIKE' : null;
+  };
+
+  const [userReaction, setUserReaction] = useState<ReactionTypeValue | null>(() =>
+    resolveInitialReaction(post)
+  );
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(
+    post.reactionCounts ?? {}
+  );
   const [likesCount, setLikesCount] = useState<number>(post.likesCount ?? 0);
+  const [showReactionBar, setShowReactionBar] = useState<boolean>(false);
+
   const [reposted, setReposted] = useState<boolean>(Boolean(post.isReposted));
   const [repostsCount, setRepostsCount] = useState<number>(post.repostsCount ?? 0);
+  const [isRepostMenuOpen, setIsRepostMenuOpen] = useState<boolean>(false);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState<boolean>(false);
+  const [quoteCommentText, setQuoteCommentText] = useState<string>('');
+  const [submittingRepost, setSubmittingRepost] = useState<boolean>(false);
+
   const [bookmarked, setBookmarked] = useState<boolean>(Boolean(post.isBookmarked));
+  const [pinned, setPinned] = useState<boolean>(Boolean(post.isPinned));
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [sharedToast, setSharedToast] = useState<boolean>(false);
 
   const [pollState, setPollState] = useState<PostPollData | null>(post.poll ?? null);
@@ -136,21 +232,75 @@ export function PostCard({
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  const menuRef = useRef<HTMLDivElement>(null);
+  const repostMenuRef = useRef<HTMLDivElement>(null);
+  const reactionCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef<boolean>(false);
+
   useEffect(() => {
-    setLiked(Boolean(post.isLiked));
+    setUserReaction(resolveInitialReaction(post));
+    setReactionCounts(post.reactionCounts ?? {});
     setLikesCount(post.likesCount ?? 0);
     setReposted(Boolean(post.isReposted));
     setRepostsCount(post.repostsCount ?? 0);
     setBookmarked(Boolean(post.isBookmarked));
+    setPinned(Boolean(post.isPinned));
     setPollState(post.poll ?? null);
   }, [post]);
+
+  // Outside click & Escape handling for dropdown menus and quote modal
+  useEffect(() => {
+    if (!isMenuOpen && !isRepostMenuOpen && !isQuoteModalOpen && !showReactionBar) return;
+
+    const handlePointerDown = (e: MouseEvent) => {
+      if (isMenuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+      if (
+        isRepostMenuOpen &&
+        repostMenuRef.current &&
+        !repostMenuRef.current.contains(e.target as Node)
+      ) {
+        setIsRepostMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMenuOpen(false);
+        setIsRepostMenuOpen(false);
+        setIsQuoteModalOpen(false);
+        setShowReactionBar(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMenuOpen, isRepostMenuOpen, isQuoteModalOpen, showReactionBar]);
+
+  useEffect(() => {
+    return () => {
+      if (reactionCloseTimerRef.current) clearTimeout(reactionCloseTimerRef.current);
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
 
   const mediaUrls = post.mediaUrls ?? [];
   const commentsTotal = post.commentsCount ?? post.commentCount ?? 0;
   const displayName = post.authorName || post.authorUsername;
+  const isOwner = String(post.authorUsername) === String(currentUsername);
   const avatarSrc =
     post.authorAvatar ||
     `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(post.authorUsername)}`;
+
+  const activeReactionMeta = userReaction
+    ? POST_REACTIONS.find((r) => r.type === userReaction) ?? POST_REACTIONS[0]
+    : null;
 
   const buildHeaders = (): Record<string, string> => {
     const headers: Record<string, string> = {
@@ -190,47 +340,178 @@ export function PostCard({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [lightboxIndex, handleLightboxNext, handleLightboxPrev]);
 
-  const handleToggleLike = async () => {
-    const nextLiked = !liked;
-    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-    setLiked(nextLiked);
-    setLikesCount(nextCount);
-    onLikeChange?.(post.id, nextLiked, nextCount);
+  const openReactionPicker = () => {
+    if (reactionCloseTimerRef.current) {
+      clearTimeout(reactionCloseTimerRef.current);
+      reactionCloseTimerRef.current = null;
+    }
+    setShowReactionBar(true);
+  };
+
+  const scheduleCloseReactionPicker = () => {
+    if (reactionCloseTimerRef.current) clearTimeout(reactionCloseTimerRef.current);
+    reactionCloseTimerRef.current = setTimeout(() => {
+      setShowReactionBar(false);
+    }, 180);
+  };
+
+  const handleSelectReaction = async (reactionType: ReactionTypeValue) => {
+    const prevReaction = userReaction;
+    const prevLikes = likesCount;
+    const prevCounts = { ...reactionCounts };
+
+    const isRemoving = prevReaction === reactionType;
+    const nextReaction: ReactionTypeValue | null = isRemoving ? null : reactionType;
+    const nextCounts: Record<string, number> = { ...prevCounts };
+
+    let nextLikes = prevLikes;
+    if (isRemoving) {
+      nextLikes = Math.max(0, prevLikes - 1);
+      if (typeof nextCounts[reactionType] === 'number') {
+        nextCounts[reactionType] = Math.max(0, nextCounts[reactionType] - 1);
+      }
+    } else {
+      if (prevReaction) {
+        if (typeof nextCounts[prevReaction] === 'number') {
+          nextCounts[prevReaction] = Math.max(0, nextCounts[prevReaction] - 1);
+        }
+      } else {
+        nextLikes = prevLikes + 1;
+      }
+      nextCounts[reactionType] = (nextCounts[reactionType] ?? 0) + 1;
+    }
+
+    setUserReaction(nextReaction);
+    setLikesCount(nextLikes);
+    setReactionCounts(nextCounts);
+    setShowReactionBar(false);
+
+    onReactionChange?.(post.id, nextReaction, nextLikes, nextCounts);
+    onLikeChange?.(post.id, nextReaction !== null, nextLikes);
 
     try {
-      await fetch(`${apiBaseUrl}/api/v1/posts/${post.id}/reactions`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/posts/${post.id}/reactions`, {
         method: 'POST',
         credentials: 'include',
         headers: buildHeaders(),
-        body: JSON.stringify({ reactionType: 'LIKE' }),
+        body: JSON.stringify({ reactionType }),
       });
+
+      if (res.ok) {
+        const data = (await res.json()) as {
+          userReaction?: ReactionTypeValue | null;
+          countsByType?: Record<string, number>;
+        };
+        const serverReaction = data.userReaction ?? null;
+        const serverCounts = data.countsByType ?? nextCounts;
+        setUserReaction(serverReaction);
+        setReactionCounts(serverCounts);
+        onReactionChange?.(post.id, serverReaction, nextLikes, serverCounts);
+        onLikeChange?.(post.id, serverReaction !== null, nextLikes);
+      }
     } catch {
       // Optimistic state kept for resilient UX
     }
   };
 
-  const handleToggleRepost = async () => {
-    const nextReposted = !reposted;
-    const nextCount = Math.max(0, repostsCount + (nextReposted ? 1 : -1));
-    setReposted(nextReposted);
-    setRepostsCount(nextCount);
-    onRepost?.(post.id);
+  const handlePrimaryLikeClick = () => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      return;
+    }
+    const targetReaction: ReactionTypeValue = userReaction ?? 'LIKE';
+    void handleSelectReaction(targetReaction);
+  };
 
+  const handleSubmitRepost = async (quoteComment?: string) => {
+    if (submittingRepost) return;
+    const trimmed = quoteComment?.trim() || undefined;
+    setSubmittingRepost(true);
+
+    const nextCount = repostsCount + 1;
+    setReposted(true);
+    setRepostsCount(nextCount);
+    setIsRepostMenuOpen(false);
+    setIsQuoteModalOpen(false);
+    setQuoteCommentText('');
+
+    let createdRepostCard: PostCardData | undefined;
     try {
-      await fetch(`${apiBaseUrl}/api/v1/posts/${post.id}/repost`, {
+      const res = await fetch(`${apiBaseUrl}/api/v1/posts/${post.id}/repost`, {
         method: 'POST',
         credentials: 'include',
         headers: buildHeaders(),
-        body: JSON.stringify({}),
+        body: JSON.stringify(trimmed ? { quoteComment: trimmed } : {}),
       });
+      if (res.ok) {
+        const data = (await res.json()) as PostCardData;
+        if (data && data.id !== undefined) {
+          createdRepostCard = data;
+        }
+      }
     } catch {
       // Optimistic state kept
+    } finally {
+      setSubmittingRepost(false);
+      onRepost?.(post.id, trimmed, createdRepostCard);
+    }
+  };
+
+  const handleTogglePin = async () => {
+    const nextPinned = !pinned;
+    setPinned(nextPinned);
+    setIsMenuOpen(false);
+    onPinChange?.(post.id, nextPinned);
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/posts/${post.id}/pin`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: buildHeaders(),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { pinned?: boolean };
+        if (typeof data.pinned === 'boolean') {
+          setPinned(data.pinned);
+          onPinChange?.(post.id, data.pinned);
+        }
+      } else if (res.status === 400 || res.status === 401 || res.status === 403) {
+        setPinned(!nextPinned);
+        onPinChange?.(post.id, !nextPinned);
+      }
+    } catch {
+      // Optimistic state kept when offline
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!isOwner || isDeleting) return;
+    setIsDeleting(true);
+    setIsMenuOpen(false);
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/v1/posts/${post.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: buildHeaders(),
+      });
+      if (res.status === 401 || res.status === 403) {
+        setIsDeleting(false);
+        return;
+      }
+      onDeletePost?.(post.id);
+    } catch {
+      // Optimistic delete when offline
+      onDeletePost?.(post.id);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const handleToggleBookmark = async () => {
     const nextBookmarked = !bookmarked;
     setBookmarked(nextBookmarked);
+    setIsMenuOpen(false);
     onBookmarkChange?.(post.id, nextBookmarked);
 
     try {
@@ -502,9 +783,9 @@ export function PostCard({
         className={`relative rounded-2xl bg-[#121521]/72 backdrop-blur-xl border border-white/10 hover:border-indigo-500/40 shadow-[0_10px_32px_rgba(0,0,0,0.38)] transition-colors duration-200 p-4 sm:p-5 ${className}`}
       >
         {/* Pinned / Repost / Thread Context Banner */}
-        {(post.isPinned || post.isRepost || post.replyToUsername) && (
+        {(pinned || post.isRepost || post.replyToUsername) && (
           <div className="flex flex-wrap items-center gap-3 mb-2.5 text-xs text-[#94A3B8]">
-            {post.isPinned && (
+            {pinned && (
               <span className="inline-flex items-center gap-1 text-[#8B5CF6] font-medium">
                 <Pin className="w-3.5 h-3.5" />
                 <span>פוסט מוצמד</span>
@@ -590,17 +871,74 @@ export function PostCard({
                 </time>
               </div>
 
-              <button
-                type="button"
-                aria-label="אפשרויות פוסט"
-                className="p-1.5 rounded-lg text-[#64748B] hover:text-[#F8FAFC] hover:bg-white/[0.06] transition-colors cursor-pointer"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
+              {/* Options Menu (...) */}
+              <div ref={menuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen((prev) => !prev)}
+                  aria-label="אפשרויות פוסט"
+                  aria-haspopup="menu"
+                  aria-expanded={isMenuOpen}
+                  className="p-1.5 rounded-lg text-[#64748B] hover:text-[#F8FAFC] hover:bg-white/[0.06] transition-colors cursor-pointer"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+
+                <AnimatePresence>
+                  {isMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                      transition={{ duration: 0.14 }}
+                      role="menu"
+                      aria-label="תפריט אפשרויות פוסט"
+                      className="absolute top-full end-0 mt-1.5 w-52 z-30 rounded-2xl border border-white/15 bg-[#121521]/95 backdrop-blur-2xl p-1.5 shadow-[0_18px_48px_rgba(0,0,0,0.85)] space-y-0.5"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={handleTogglePin}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#F8FAFC] hover:bg-white/[0.08] transition-colors cursor-pointer text-start"
+                      >
+                        <Pin className={`w-3.5 h-3.5 ${pinned ? 'text-[#8B5CF6] fill-[#8B5CF6]/30' : 'text-[#94A3B8]'}`} />
+                        <span>{pinned ? 'בטל הצמדה' : 'הצמד פוסט'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={handleToggleBookmark}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#F8FAFC] hover:bg-white/[0.08] transition-colors cursor-pointer text-start"
+                      >
+                        <Bookmark className={`w-3.5 h-3.5 ${bookmarked ? 'text-[#6366F1] fill-[#6366F1]' : 'text-[#94A3B8]'}`} />
+                        <span>{bookmarked ? 'הסר מסימניות' : 'שמור בסימניות'}</span>
+                      </button>
+
+                      {isOwner && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={isDeleting}
+                          onClick={handleDeletePost}
+                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#F43F5E] hover:bg-[#F43F5E]/15 transition-colors cursor-pointer text-start disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>{isDeleting ? 'מוחק...' : 'מחק פוסט'}</span>
+                        </button>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* Post Text (Bilingual dir="auto") */}
-            <div className="mt-1">{renderRichText(post.content)}</div>
+            {(post.content || post.quoteComment) && (
+              <div className="mt-1">
+                {renderRichText(post.content || post.quoteComment || '')}
+              </div>
+            )}
 
             {/* Attached Entity Card (UGC / Product / Event) */}
             {post.attachedEntity && (
@@ -622,8 +960,12 @@ export function PostCard({
 
             {/* Embedded Original Quote / Repost */}
             {post.originalPost && (
-              <div className="mt-3 p-3.5 rounded-xl bg-[#090A0F]/65 border border-white/10">
-                <div className="flex items-center gap-2 mb-1.5">
+              <div className="mt-3 p-3.5 rounded-xl bg-[#090A0F]/65 border border-white/10 hover:border-indigo-500/30 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => onAuthorClick?.(post.originalPost!.authorUsername)}
+                  className="flex items-center gap-2 mb-1.5 cursor-pointer group text-start"
+                >
                   <img
                     src={
                       post.originalPost.authorAvatar ||
@@ -634,13 +976,13 @@ export function PostCard({
                     alt={post.originalPost.authorUsername}
                     className="w-5 h-5 rounded-full object-cover"
                   />
-                  <span className="text-xs font-semibold text-[#F8FAFC]">
+                  <span className="text-xs font-semibold text-[#F8FAFC] group-hover:text-[#6366F1] transition-colors">
                     {post.originalPost.authorName || post.originalPost.authorUsername}
                   </span>
                   <span className="text-xs font-mono text-[#64748B]">
                     @{post.originalPost.authorUsername}
                   </span>
-                </div>
+                </button>
                 <p dir="auto" className="text-xs sm:text-sm text-[#94A3B8] line-clamp-3">
                   {post.originalPost.content}
                 </p>
@@ -756,23 +1098,133 @@ export function PostCard({
             {/* Spring-Animated Action Bar */}
             <div className="mt-3.5 pt-2.5 border-t border-white/[0.07] flex items-center justify-between gap-1">
               <div className="flex items-center gap-1 sm:gap-2">
-                {/* Like (#F43F5E) */}
-                <motion.button
-                  type="button"
-                  onClick={handleToggleLike}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.86 }}
-                  transition={{ type: 'spring', stiffness: 480, damping: 20 }}
-                  aria-label="לייק"
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                    liked
-                      ? 'text-[#F43F5E] bg-[#F43F5E]/15 border border-[#F43F5E]/30'
-                      : 'text-[#94A3B8] hover:text-[#F43F5E] hover:bg-[#F43F5E]/10'
-                  }`}
+                {/* 6-Reaction Micro-Bar Trigger + Active Reaction Display */}
+                <div
+                  className="relative inline-flex items-center"
+                  onMouseEnter={openReactionPicker}
+                  onMouseLeave={scheduleCloseReactionPicker}
+                  onFocus={openReactionPicker}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                      setShowReactionBar(false);
+                    }
+                  }}
                 >
-                  <Heart className={`w-4 h-4 ${liked ? 'fill-[#F43F5E]' : ''}`} />
-                  <span className="font-mono">{likesCount}</span>
-                </motion.button>
+                  <AnimatePresence>
+                    {showReactionBar && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.92 }}
+                        transition={{ type: 'spring', stiffness: 460, damping: 24 }}
+                        role="toolbar"
+                        aria-label="בחר ריאקציה"
+                        onMouseEnter={openReactionPicker}
+                        onMouseLeave={scheduleCloseReactionPicker}
+                        className="absolute bottom-full start-0 pb-2 z-30"
+                      >
+                        <div className="flex items-center gap-1 rounded-2xl border border-white/15 bg-[#121521]/95 p-1.5 backdrop-blur-2xl shadow-[0_18px_44px_rgba(0,0,0,0.8),0_0_24px_rgba(99,102,241,0.22)]">
+                          {POST_REACTIONS.map((reaction) => {
+                            const isSelected = userReaction === reaction.type;
+                            const typeCount = reactionCounts[reaction.type] ?? 0;
+                            return (
+                              <motion.button
+                                key={reaction.type}
+                                type="button"
+                                onClick={() => void handleSelectReaction(reaction.type)}
+                                whileHover={{ scale: 1.2, y: -3 }}
+                                whileTap={{ scale: 0.88 }}
+                                transition={{ type: 'spring', stiffness: 480, damping: 20 }}
+                                title={`${reaction.label} (${reaction.type})`}
+                                aria-label={`${reaction.label} (${reaction.type})`}
+                                aria-pressed={isSelected}
+                                className={`flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                                  isSelected
+                                    ? reaction.activeClass
+                                    : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/[0.08]'
+                                }`}
+                              >
+                                <span className="text-base leading-none select-none">
+                                  {reaction.emoji}
+                                </span>
+                                <span className="hidden sm:inline text-[11px]">
+                                  {reaction.label}
+                                </span>
+                                {typeCount > 0 && (
+                                  <span className="font-mono text-[10px] opacity-80">
+                                    {typeCount}
+                                  </span>
+                                )}
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <motion.button
+                    type="button"
+                    onClick={handlePrimaryLikeClick}
+                    onPointerDown={() => {
+                      longPressTriggeredRef.current = false;
+                      longPressTimerRef.current = setTimeout(() => {
+                        longPressTriggeredRef.current = true;
+                        setShowReactionBar(true);
+                      }, 420);
+                    }}
+                    onPointerUp={() => {
+                      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    }}
+                    onPointerCancel={() => {
+                      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    }}
+                    onPointerLeave={() => {
+                      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    }}
+                    whileHover={{ scale: 1.06 }}
+                    whileTap={{ scale: 0.88 }}
+                    transition={{ type: 'spring', stiffness: 480, damping: 20 }}
+                    aria-label={
+                      activeReactionMeta
+                        ? `${activeReactionMeta.label} (${likesCount})`
+                        : 'לייק'
+                    }
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-s-xl text-xs font-medium transition-colors cursor-pointer ${
+                      activeReactionMeta
+                        ? activeReactionMeta.activeClass
+                        : 'text-[#94A3B8] hover:text-[#F43F5E] hover:bg-[#F43F5E]/10'
+                    }`}
+                  >
+                    {activeReactionMeta ? (
+                      <>
+                        <span className="text-sm leading-none select-none">
+                          {activeReactionMeta.emoji}
+                        </span>
+                        <span className="text-[11px] font-semibold">
+                          {activeReactionMeta.label}
+                        </span>
+                      </>
+                    ) : (
+                      <Heart className="w-4 h-4" />
+                    )}
+                    <span className="font-mono">{likesCount}</span>
+                  </motion.button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowReactionBar((prev) => !prev)}
+                    aria-label="פתח תפריט ריאקציות"
+                    aria-expanded={showReactionBar}
+                    className={`px-1.5 py-1.5 rounded-e-xl text-xs transition-colors cursor-pointer ${
+                      showReactionBar
+                        ? 'text-indigo-300 bg-[#6366F1]/20'
+                        : 'text-[#64748B] hover:text-[#F8FAFC] hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    <SmilePlus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
                 {/* Comment */}
                 <motion.button
@@ -788,23 +1240,64 @@ export function PostCard({
                   <span className="font-mono">{commentsTotal}</span>
                 </motion.button>
 
-                {/* Repost */}
-                <motion.button
-                  type="button"
-                  onClick={handleToggleRepost}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.88 }}
-                  transition={{ type: 'spring', stiffness: 480, damping: 20 }}
-                  aria-label="שיתוף מחדש"
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                    reposted
-                      ? 'text-[#10B981] bg-[#10B981]/15 border border-[#10B981]/30'
-                      : 'text-[#94A3B8] hover:text-[#10B981] hover:bg-[#10B981]/10'
-                  }`}
-                >
-                  <Repeat2 className="w-4 h-4" />
-                  <span className="font-mono">{repostsCount}</span>
-                </motion.button>
+                {/* Repost / Quote Repost Menu */}
+                <div ref={repostMenuRef} className="relative">
+                  <motion.button
+                    type="button"
+                    onClick={() => setIsRepostMenuOpen((prev) => !prev)}
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.88 }}
+                    transition={{ type: 'spring', stiffness: 480, damping: 20 }}
+                    aria-label="שיתוף מחדש או ציטוט"
+                    aria-haspopup="menu"
+                    aria-expanded={isRepostMenuOpen}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                      reposted
+                        ? 'text-[#10B981] bg-[#10B981]/15 border border-[#10B981]/30'
+                        : 'text-[#94A3B8] hover:text-[#10B981] hover:bg-[#10B981]/10'
+                    }`}
+                  >
+                    <Repeat2 className="w-4 h-4" />
+                    <span className="font-mono">{repostsCount}</span>
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {isRepostMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                        transition={{ duration: 0.14 }}
+                        role="menu"
+                        aria-label="אפשרויות שיתוף מחדש"
+                        className="absolute bottom-full start-0 mb-2 w-56 z-30 rounded-2xl border border-white/15 bg-[#121521]/95 backdrop-blur-2xl p-1.5 shadow-[0_18px_48px_rgba(0,0,0,0.85)] space-y-0.5"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => void handleSubmitRepost()}
+                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#F8FAFC] hover:bg-[#10B981]/15 hover:text-[#10B981] transition-colors cursor-pointer text-start"
+                        >
+                          <Repeat2 className="w-3.5 h-3.5 text-[#10B981]" />
+                          <span>שיתוף מחדש מהיר</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsRepostMenuOpen(false);
+                            setIsQuoteModalOpen(true);
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#F8FAFC] hover:bg-[#6366F1]/15 hover:text-indigo-300 transition-colors cursor-pointer text-start"
+                        >
+                          <Quote className="w-3.5 h-3.5 text-[#6366F1]" />
+                          <span>ציטוט פוסט (Quote Repost)</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               <div className="flex items-center gap-1">
@@ -846,6 +1339,97 @@ export function PostCard({
           </div>
         </div>
       </motion.article>
+
+      {/* Quote Repost Modal */}
+      <AnimatePresence>
+        {isQuoteModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsQuoteModalOpen(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-[#090A0F]/80 backdrop-blur-md p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="ציטוט פוסט"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.18 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#121521]/95 backdrop-blur-2xl p-5 sm:p-6 shadow-[0_24px_80px_rgba(0,0,0,0.85)] space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#10B981]/15 border border-[#10B981]/30 text-[#10B981]">
+                    <Repeat2 className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#F8FAFC]">ציטוט פוסט (Quote Repost)</h3>
+                    <p className="font-mono text-[11px] text-[#94A3B8]">
+                      הוסף פרשנות משלך לפני הפרסום
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQuoteModalOpen(false)}
+                  aria-label="סגור חלון ציטוט"
+                  className="rounded-xl p-1.5 text-[#94A3B8] hover:bg-white/10 hover:text-[#F8FAFC] transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <textarea
+                rows={3}
+                dir="auto"
+                value={quoteCommentText}
+                onChange={(e) => setQuoteCommentText(e.target.value)}
+                placeholder="מה דעתך על הפוסט הזה? כתוב תגובה או תובנה..."
+                className="w-full rounded-2xl border border-white/10 bg-[#090A0F]/80 px-4 py-3 text-sm text-[#F8FAFC] placeholder-[#64748B] outline-none focus:border-[#6366F1] resize-none"
+              />
+
+              {/* Quoted Post Preview */}
+              <div className="rounded-2xl border border-white/10 bg-[#090A0F]/65 p-3.5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={avatarSrc}
+                    alt={displayName}
+                    className="w-5 h-5 rounded-full object-cover"
+                  />
+                  <span className="text-xs font-bold text-[#F8FAFC]">{displayName}</span>
+                  <span className="text-xs font-mono text-[#64748B]">@{post.authorUsername}</span>
+                </div>
+                <p dir="auto" className="text-xs text-[#94A3B8] line-clamp-3">
+                  {post.content || post.quoteComment}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsQuoteModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/[0.08] transition-colors cursor-pointer"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingRepost || !quoteCommentText.trim()}
+                  onClick={() => void handleSubmitRepost(quoteCommentText)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-xs font-bold text-white shadow-[0_8px_20px_-4px_rgba(99,102,241,0.55)] hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{submittingRepost ? 'משתף...' : 'פרסם ציטוט'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Media Lightbox Modal */}
       <AnimatePresence>

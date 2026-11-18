@@ -41,13 +41,13 @@ spring:
         - id: user-service-users
           uri: ${USER_SERVICE_URI:http://${USER_SERVICE_HOSTPORT:localhost:8081}}
           predicates:
-            - Path=/api/users/**
+            - Path=/api/v1/users/**,/api/users/**
 
         # 2. Post Service (8082)
         - id: post-service
           uri: ${POST_SERVICE_URI:http://${POST_SERVICE_HOSTPORT:localhost:8082}}
           predicates:
-            - Path=/api/v1/posts/**,/api/posts/**
+            - Path=/api/v1/posts/**,/api/posts/**,/api/v1/stories/**,/api/stories/**
 
         # 3. Feed Service (8083)
         - id: feed-service

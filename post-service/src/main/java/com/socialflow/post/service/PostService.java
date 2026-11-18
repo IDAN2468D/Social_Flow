@@ -6,6 +6,7 @@ import com.socialflow.post.event.CommentCreatedEvent;
 import com.socialflow.post.event.PostCreatedEvent;
 import com.socialflow.post.event.PostDeletedEvent;
 import com.socialflow.post.event.PostLikedEvent;
+import com.socialflow.post.event.PostPinnedEvent;
 import com.socialflow.post.event.PostRepostedEvent;
 import com.socialflow.post.model.*;
 import com.socialflow.post.repository.*;
@@ -201,12 +202,14 @@ public class PostService {
 
         Optional<PostReaction> existingOpt = postReactionRepository.findByPostIdAndUserId(postId, currentUser.getUserId());
         ReactionType activeReaction = null;
+        Boolean likedEvent = null;
 
         if (existingOpt.isPresent()) {
             PostReaction existing = existingOpt.get();
             if (existing.getReactionType() == reactionType) {
                 postReactionRepository.delete(existing);
                 post.setLikesCount(Math.max(0, post.getLikesCount() - 1));
+                likedEvent = false;
             } else {
                 existing.setReactionType(reactionType);
                 postReactionRepository.save(existing);
@@ -221,10 +224,35 @@ public class PostService {
                     .build());
             post.setLikesCount(post.getLikesCount() + 1);
             activeReaction = reactionType;
+            likedEvent = true;
         }
 
         postRepository.save(post);
+
+        if (likedEvent != null) {
+            postKafkaProducer.emitPostLiked(PostLikedEvent.builder()
+                    .postId(postId)
+                    .userId(currentUser.getUserId())
+                    .username(currentUser.getUsername())
+                    .authorId(post.getAuthorId())
+                    .liked(likedEvent)
+                    .build());
+        }
+
         return getReactionSummary(postId, activeReaction);
+    }
+
+    public ReactionType getUserReaction(Long postId, Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return postReactionRepository.findByPostIdAndUserId(postId, userId)
+                .map(PostReaction::getReactionType)
+                .orElse(null);
+    }
+
+    public ReactionSummaryDto getReactionSummaryForUser(Long postId, Long currentUserId) {
+        return getReactionSummary(postId, getUserReaction(postId, currentUserId));
     }
 
     public ReactionSummaryDto getReactionSummary(Long postId, ReactionType userReaction) {
@@ -275,6 +303,13 @@ public class PostService {
 
         post.setPinned(!post.isPinned());
         postRepository.save(post);
+
+        postKafkaProducer.emitPostPinned(PostPinnedEvent.builder()
+                .postId(postId)
+                .authorId(currentUser.getUserId())
+                .pinned(post.isPinned())
+                .build());
+
         return post.isPinned();
     }
 

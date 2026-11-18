@@ -16,4 +16,7 @@ public class CommentCreatedEvent {
     private String content;
     @Builder.Default
     private LocalDateTime timestamp = LocalDateTime.now();
+
+    @Builder.Default
+    private String eventType = "COMMENT_CREATED";
 }

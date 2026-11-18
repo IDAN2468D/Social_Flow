@@ -48,6 +48,7 @@ class AgentRunRequest(BaseModel):
     user_approved: bool = False
 
 @app.get("/health")
+@app.get("/api/v1/ai/health")
 async def health():
     return {
         "status": "UP",

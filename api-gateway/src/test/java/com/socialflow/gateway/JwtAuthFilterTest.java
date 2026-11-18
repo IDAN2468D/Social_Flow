@@ -125,4 +125,64 @@ class JwtAuthFilterTest {
         assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
         verify(filterChain, never()).filter(any());
     }
+
+    @Test
+    void testPublicReadAndHealthRoutesBypassAuthOnGet() {
+        for (String path : new String[]{
+                "/api/v1/ai/health",
+                "/api/v1/stories",
+                "/api/v1/search/multi",
+                "/api/search",
+                "/api/v1/feed/trending",
+                "/api/v1/feed/trending-tags",
+                "/api/v1/feed/for-you",
+                "/api/v1/users/profile/idan",
+                "/api/users/profile/idan",
+                "/api/v1/users/search"
+        }) {
+            MockServerHttpRequest request = MockServerHttpRequest.get(path).build();
+            MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+            jwtAuthFilter.filter(exchange, filterChain).block();
+
+            assertNull(exchange.getResponse().getStatusCode(), "Expected public GET access for " + path);
+        }
+        verify(filterChain, times(10)).filter(any());
+    }
+
+    @Test
+    void testPublicGetRouteStillForwardsIdentityHeadersWhenTokenPresent() {
+        String token = generateTestToken(42L, "idan", "idan@example.com", 60000);
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/users/profile/noa")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        jwtAuthFilter.filter(exchange, filterChain).block();
+
+        verify(filterChain, times(1)).filter(argThat(ex -> {
+            HttpHeaders headers = ex.getRequest().getHeaders();
+            return "42".equals(headers.getFirst("X-Auth-UserId")) &&
+                   "idan".equals(headers.getFirst("X-Auth-Username"));
+        }));
+    }
+
+    @Test
+    void testMutationsRemainProtectedWithoutToken() {
+        MockServerWebExchange postStory = MockServerWebExchange.from(MockServerHttpRequest.post("/api/v1/stories").build());
+        MockServerWebExchange postFollow = MockServerWebExchange.from(MockServerHttpRequest.post("/api/v1/users/noa/follow").build());
+        MockServerWebExchange deleteFollow = MockServerWebExchange.from(MockServerHttpRequest.delete("/api/v1/users/noa/follow").build());
+        MockServerWebExchange putProfile = MockServerWebExchange.from(MockServerHttpRequest.put("/api/v1/users/profile").build());
+
+        jwtAuthFilter.filter(postStory, filterChain).block();
+        jwtAuthFilter.filter(postFollow, filterChain).block();
+        jwtAuthFilter.filter(deleteFollow, filterChain).block();
+        jwtAuthFilter.filter(putProfile, filterChain).block();
+
+        assertEquals(HttpStatus.UNAUTHORIZED, postStory.getResponse().getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, postFollow.getResponse().getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, deleteFollow.getResponse().getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, putProfile.getResponse().getStatusCode());
+        verify(filterChain, never()).filter(any());
+    }
 }

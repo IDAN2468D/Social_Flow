@@ -40,10 +40,13 @@ public class JwtAuthenticationFilter implements Filter {
             return;
         }
 
-        final String gatewayUsername = request.getHeader("X-Auth-Username");
-        if (gatewayUsername != null && !gatewayUsername.isEmpty() && SecurityContextHolder.getContext().getAuthentication() == null) {
+        String gatewayUsername = request.getHeader("X-Auth-Username");
+        if (gatewayUsername == null || gatewayUsername.isBlank()) {
+            gatewayUsername = request.getHeader("X-User-Name");
+        }
+        if (gatewayUsername != null && !gatewayUsername.isBlank() && SecurityContextHolder.getContext().getAuthentication() == null) {
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    gatewayUsername,
+                    gatewayUsername.trim(),
                     null,
                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
             );

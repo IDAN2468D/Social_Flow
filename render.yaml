@@ -59,6 +59,7 @@ services:
     dockerContext: ./frontend
     plan: free
     autoDeploy: true
+    healthCheckPath: /
     envVars:
       - key: API_GATEWAY_HOSTPORT
         fromService:

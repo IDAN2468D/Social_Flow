@@ -2,7 +2,6 @@ package com.socialflow.post.controller;
 
 import com.socialflow.post.config.UserPrincipal;
 import com.socialflow.post.dto.*;
-import com.socialflow.post.model.ReactionType;
 import com.socialflow.post.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -75,11 +74,8 @@ public class PostController {
     public ResponseEntity<ReactionSummaryDto> getReactionSummary(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal currentUser) {
-        ReactionType userReaction = null;
-        if (currentUser != null) {
-            userReaction = postService.getReactionSummary(id, null).getUserReaction();
-        }
-        return ResponseEntity.ok(postService.getReactionSummary(id, userReaction));
+        Long currentUserId = currentUser != null ? currentUser.getUserId() : null;
+        return ResponseEntity.ok(postService.getReactionSummaryForUser(id, currentUserId));
     }
 
     @PostMapping("/{id}/bookmark")

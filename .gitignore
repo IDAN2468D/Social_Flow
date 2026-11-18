@@ -74,3 +74,6 @@ __pycache__/
 *.py[cod]
 temp_page.html
 *.png
+
+.pytest_cache/
+*.tsbuildinfo

@@ -39,16 +39,23 @@ public class SecurityConfig {
                         // 1. אישור לניתוב פנימי ולשגיאות - מונע 403 במקרה של ניתוב פנימי
                         .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
 
-                        // 2. אישור מפורש לנתיבי ההרשמה, ההתחברות, Health והשגיאות
+                        // 2. אישור מפורש לנתיבי ההרשמה, ההתחברות, Health, קריאות פומביות והשגיאות
                         .requestMatchers(
+                                new AntPathRequestMatcher("/**", "OPTIONS"),
                                 new AntPathRequestMatcher("/error"),
                                 new AntPathRequestMatcher("/actuator/**"),
                                 new AntPathRequestMatcher("/api/auth/**"),
                                 new AntPathRequestMatcher("/api/auth/register"),
-                                new AntPathRequestMatcher("/api/auth/login")
+                                new AntPathRequestMatcher("/api/auth/login"),
+                                new AntPathRequestMatcher("/api/v1/users/profile/**", "GET"),
+                                new AntPathRequestMatcher("/api/users/profile/**", "GET"),
+                                new AntPathRequestMatcher("/api/v1/users/search", "GET"),
+                                new AntPathRequestMatcher("/api/users/search", "GET"),
+                                new AntPathRequestMatcher("/api/v1/users/*/following-ids", "GET"),
+                                new AntPathRequestMatcher("/api/users/*/following-ids", "GET")
                         ).permitAll()
 
-                        // 3. כל שאר הנתיבים דורשים טוקן מאומת
+                        // 3. כל שאר הנתיבים (כולל פעולות כתיבה על /api/v1/users/** ו-/api/users/**) דורשים טוקן מאומת
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

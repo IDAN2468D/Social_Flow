@@ -42,33 +42,56 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             "/swagger-ui",
             "/swagger-resources",
             "/webjars",
-            "/ws/"
+            "/ws/",
+            "/api/v1/ai/health"
+    );
+
+    private static final List<String> PUBLIC_GET_PREFIXES = List.of(
+            "/api/v1/stories",
+            "/api/stories",
+            "/api/v1/search",
+            "/api/search",
+            "/api/v1/feed/trending",
+            "/api/feed/trending",
+            "/api/v1/feed/trending-tags",
+            "/api/feed/trending-tags",
+            "/api/v1/feed/for-you",
+            "/api/feed/for-you",
+            "/api/v1/feed/search",
+            "/api/feed/search",
+            "/api/v1/feed/user/",
+            "/api/feed/user/",
+            "/api/v1/users/profile",
+            "/api/users/profile",
+            "/api/v1/users/search",
+            "/api/users/search"
     );
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
+        HttpMethod method = request.getMethod();
 
         // 1. Allow CORS pre-flight requests
-        if (request.getMethod() == HttpMethod.OPTIONS) {
+        if (method == HttpMethod.OPTIONS) {
             return chain.filter(exchange);
         }
 
-        // 2. Allow Public endpoints without JWT
-        if (isPublicPath(path)) {
-            return chain.filter(exchange);
-        }
+        boolean isPublic = isPublicRequest(method, path);
 
-        // 3. Extract JWT Token from Authorization header or HttpOnly Cookie
+        // 2. Extract JWT Token from Authorization header or HttpOnly Cookie
         String token = extractToken(request);
 
         if (token == null || token.isBlank()) {
+            if (isPublic) {
+                return chain.filter(exchange);
+            }
             log.warn("Unauthorized access attempt to {}: Missing JWT token", path);
             return onError(exchange, HttpStatus.UNAUTHORIZED, "Missing JWT authentication token or cookie");
         }
 
-        // 4. Validate and Parse Claims
+        // 3. Validate and Parse Claims (also attach identity headers on public GETs when a valid token is present)
         try {
             Claims claims = parseClaims(token);
             String username = claims.getSubject();
@@ -78,7 +101,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             String userIdStr = userIdObj != null ? String.valueOf(userIdObj) : "1";
             String emailStr = emailObj != null ? String.valueOf(emailObj) : "";
 
-            // 5. Mutate Request and Forward Identity Headers to downstream microservices
+            // 4. Mutate Request and Forward Identity Headers to downstream microservices
             ServerHttpRequest mutatedRequest = request.mutate()
                     .header("X-User-Id", userIdStr)
                     .header("X-Auth-UserId", userIdStr)
@@ -90,14 +113,30 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
 
         } catch (Exception e) {
+            if (isPublic) {
+                log.debug("Ignoring invalid/expired JWT token on public path {}: {}", path, e.getMessage());
+                return chain.filter(exchange);
+            }
             log.error("Invalid JWT token for path {}: {}", path, e.getMessage());
             return onError(exchange, HttpStatus.UNAUTHORIZED, "Invalid or expired JWT token: " + e.getMessage());
         }
     }
 
-    private boolean isPublicPath(String path) {
-        for (String prefix : PUBLIC_PATH_PREFIXES) {
-            if (path.startsWith(prefix) || path.equals(prefix.replaceAll("/+$", ""))) {
+    private boolean isPublicRequest(HttpMethod method, String path) {
+        if (matchesAnyPrefix(path, PUBLIC_PATH_PREFIXES)) {
+            return true;
+        }
+        return method == HttpMethod.GET && matchesAnyPrefix(path, PUBLIC_GET_PREFIXES);
+    }
+
+    private boolean matchesAnyPrefix(String path, List<String> prefixes) {
+        for (String prefix : prefixes) {
+            String normalized = prefix.replaceAll("/+$", "");
+            if (prefix.endsWith("/")) {
+                if (path.startsWith(prefix) || path.equals(normalized)) {
+                    return true;
+                }
+            } else if (path.equals(normalized) || path.startsWith(normalized + "/")) {
                 return true;
             }
         }

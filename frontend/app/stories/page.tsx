@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { clearStoredAuthToken, isJwtExpired } from '@/lib/auth';
 
 interface StorySlide {
   id: string;
@@ -20,6 +21,25 @@ interface UserStoryGroup {
   coverImage: string;
   slides: StorySlide[];
   hasUnread: boolean;
+}
+
+interface RawBackendStory {
+  id?: string | number;
+  userId?: string | number;
+  username?: string;
+  userAvatar?: string;
+  mediaUrl?: string;
+  caption?: string;
+  createdAt?: string;
+  expiresAt?: string;
+}
+
+interface StoredStoryUser {
+  userId?: number | string;
+  username?: string;
+  fullName?: string;
+  avatarUrl?: string;
+  token?: string;
 }
 
 const INITIAL_STORIES: UserStoryGroup[] = [
@@ -99,6 +119,116 @@ const INITIAL_STORIES: UserStoryGroup[] = [
   },
 ];
 
+function readStoryUserSession(): StoredStoryUser {
+  if (typeof window === 'undefined') return { userId: 1, username: 'idan' };
+  try {
+    const raw = localStorage.getItem('socialflow_user');
+    if (!raw) return { userId: 1, username: 'idan' };
+    const parsed = JSON.parse(raw) as StoredStoryUser;
+    let token = parsed.token;
+    if (token && isJwtExpired(token)) {
+      clearStoredAuthToken();
+      token = undefined;
+    }
+    return {
+      userId: parsed.userId ?? 1,
+      username: parsed.username || 'idan',
+      fullName: parsed.fullName,
+      avatarUrl: parsed.avatarUrl,
+      token,
+    };
+  } catch {
+    return { userId: 1, username: 'idan' };
+  }
+}
+
+function buildStoryAuthHeaders(
+  session: StoredStoryUser,
+  includeJson = false
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'X-Auth-UserId': String(session.userId ?? 1),
+    'X-Auth-Username': session.username || 'idan',
+  };
+  if (includeJson) headers['Content-Type'] = 'application/json';
+  if (session.token && !isJwtExpired(session.token)) {
+    headers.Authorization = `Bearer ${session.token}`;
+  }
+  return headers;
+}
+
+function formatStoryTime(isoOrText?: string): string {
+  if (!isoOrText) return 'כרגע';
+  const date = new Date(isoOrText);
+  if (Number.isNaN(date.getTime())) return isoOrText;
+  const diffSec = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (diffSec < 60) return 'כרגע';
+  if (diffSec < 3600) return `לפני ${Math.floor(diffSec / 60)} דקות`;
+  if (diffSec < 86400) return `לפני ${Math.floor(diffSec / 3600)} שעות`;
+  return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+}
+
+function mergeBackendStories(
+  backendStories: RawBackendStory[],
+  curated: UserStoryGroup[],
+  session: StoredStoryUser
+): UserStoryGroup[] {
+  const clonedCurated = curated.map((g) => ({
+    ...g,
+    slides: [...g.slides],
+  }));
+
+  const groupMap = new Map<string, UserStoryGroup>();
+  for (const group of clonedCurated) {
+    groupMap.set(group.username.toLowerCase(), group);
+  }
+
+  const newBackendUsers: UserStoryGroup[] = [];
+  const loggedInHandle = (session.username || 'idan').toLowerCase();
+
+  for (let i = 0; i < backendStories.length; i++) {
+    const item = backendStories[i];
+    const uname = (item.username || '').trim();
+    if (!uname || !item.mediaUrl) continue;
+
+    const key = uname.toLowerCase();
+    const slide: StorySlide = {
+      id: String(item.id ?? `backend-story-${i}`),
+      mediaUrl: item.mediaUrl,
+      caption: item.caption || undefined,
+      createdAt: formatStoryTime(item.createdAt),
+    };
+
+    const existing = groupMap.get(key);
+    if (existing) {
+      if (!existing.slides.some((s) => s.id === slide.id)) {
+        existing.slides = [slide, ...existing.slides];
+      }
+      existing.coverImage = slide.mediaUrl;
+      if (item.userAvatar) existing.avatar = item.userAvatar;
+    } else {
+      const isOwn = key === loggedInHandle;
+      const newGroup: UserStoryGroup = {
+        id: `user-${key}`,
+        userId: String(item.userId ?? `u-${key}`),
+        username: uname,
+        name: isOwn ? `${session.fullName || uname} (הסטורי שלך)` : `@${uname}`,
+        avatar:
+          item.userAvatar ||
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(uname)}`,
+        coverImage: slide.mediaUrl,
+        slides: [slide],
+        hasUnread: !isOwn,
+      };
+      groupMap.set(key, newGroup);
+      newBackendUsers.push(newGroup);
+    }
+  }
+
+  return [...newBackendUsers, ...clonedCurated];
+}
+
 export default function StoriesPage() {
   const [stories, setStories] = useState<UserStoryGroup[]>(INITIAL_STORIES);
   const [currentUserIndex, setCurrentUserIndex] = useState(0);
@@ -114,14 +244,79 @@ export default function StoriesPage() {
   );
   const [toast, setToast] = useState<string | null>(null);
 
-  const currentUser = stories[currentUserIndex] || stories[0];
-  const currentSlide = currentUser.slides[currentSlideIndex] || currentUser.slides[0];
+  const safeUserIdx = currentUserIndex < stories.length ? currentUserIndex : 0;
+  const currentUser = stories[safeUserIdx] || stories[0];
+  const safeSlideIdx =
+    currentSlideIndex < currentUser.slides.length ? currentSlideIndex : 0;
+  const currentSlide = currentUser.slides[safeSlideIdx] || currentUser.slides[0];
   const DURATION_MS = 5000;
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
+
+  // Load active stories from backend on mount with graceful offline fallback
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadStories() {
+      const session = readStoryUserSession();
+      try {
+        const res = await fetch('/api/v1/stories', {
+          method: 'GET',
+          credentials: 'include',
+          headers: buildStoryAuthHeaders(session, false),
+        });
+        if (!res.ok || !isMounted) return;
+
+        const payload = (await res.json()) as
+          | RawBackendStory[]
+          | { content?: RawBackendStory[] };
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.content)
+            ? payload.content
+            : [];
+
+        if (list.length > 0 && isMounted) {
+          setStories(mergeBackendStories(list, INITIAL_STORIES, session));
+        }
+      } catch {
+        // Keep INITIAL_STORIES curated fallback when offline
+      }
+    }
+
+    void loadStories();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleNextSlide = useCallback(() => {
+    setProgress(0);
+    if (safeSlideIdx < currentUser.slides.length - 1) {
+      setCurrentSlideIndex(safeSlideIdx + 1);
+    } else if (safeUserIdx < stories.length - 1) {
+      setCurrentUserIndex(safeUserIdx + 1);
+      setCurrentSlideIndex(0);
+    } else {
+      setCurrentUserIndex(0);
+      setCurrentSlideIndex(0);
+    }
+  }, [safeSlideIdx, safeUserIdx, currentUser.slides.length, stories.length]);
+
+  const handlePrevSlide = useCallback(() => {
+    setProgress(0);
+    if (safeSlideIdx > 0) {
+      setCurrentSlideIndex(safeSlideIdx - 1);
+    } else if (safeUserIdx > 0) {
+      const prevIdx = safeUserIdx - 1;
+      const prevUser = stories[prevIdx];
+      setCurrentUserIndex(prevIdx);
+      setCurrentSlideIndex(Math.max(0, prevUser.slides.length - 1));
+    }
+  }, [safeSlideIdx, safeUserIdx, stories]);
 
   // Progress timer
   useEffect(() => {
@@ -141,31 +336,7 @@ export default function StoriesPage() {
     }, interval);
 
     return () => clearInterval(timer);
-  }, [currentUserIndex, currentSlideIndex, isPaused, isCreatorOpen]);
-
-  const handleNextSlide = () => {
-    setProgress(0);
-    if (currentSlideIndex < currentUser.slides.length - 1) {
-      setCurrentSlideIndex((prev) => prev + 1);
-    } else if (currentUserIndex < stories.length - 1) {
-      setCurrentUserIndex((prev) => prev + 1);
-      setCurrentSlideIndex(0);
-    } else {
-      setCurrentUserIndex(0);
-      setCurrentSlideIndex(0);
-    }
-  };
-
-  const handlePrevSlide = () => {
-    setProgress(0);
-    if (currentSlideIndex > 0) {
-      setCurrentSlideIndex((prev) => prev - 1);
-    } else if (currentUserIndex > 0) {
-      setCurrentUserIndex((prev) => prev - 1);
-      const prevUser = stories[currentUserIndex - 1];
-      setCurrentSlideIndex(prevUser.slides.length - 1);
-    }
-  };
+  }, [isPaused, isCreatorOpen, handleNextSlide]);
 
   const handleSendReaction = (emoji: string) => {
     const heart = { id: Date.now(), emoji };
@@ -183,23 +354,95 @@ export default function StoriesPage() {
     showToast('התגובה נשלחה בהצלחה בפרטי!');
   };
 
-  const handleAddCustomStory = () => {
-    if (!newCaption.trim()) return;
+  const handleAddCustomStory = async () => {
+    const caption = newCaption.trim();
+    if (!caption) return;
+
+    const session = readStoryUserSession();
+    const activeUsername = session.username || 'idan';
+    const tempId = `custom_${Date.now()}`;
     const newSlide: StorySlide = {
-      id: `custom_${Date.now()}`,
+      id: tempId,
       mediaUrl: newMediaUrl,
-      caption: newCaption,
+      caption,
       createdAt: 'כרגע',
     };
 
-    const updated = [...stories];
-    updated[0].slides.unshift(newSlide);
-    setStories(updated);
-    setCurrentUserIndex(0);
+    let targetUserIndex = 0;
+    setStories((prev) => {
+      const idx = prev.findIndex(
+        (g) => g.username.toLowerCase() === activeUsername.toLowerCase()
+      );
+      if (idx >= 0) {
+        targetUserIndex = idx;
+        return prev.map((g, i) =>
+          i === idx
+            ? { ...g, coverImage: newMediaUrl, slides: [newSlide, ...g.slides] }
+            : g
+        );
+      }
+      targetUserIndex = 0;
+      const newGroup: UserStoryGroup = {
+        id: `user-${activeUsername.toLowerCase()}`,
+        userId: String(session.userId ?? 1),
+        username: activeUsername,
+        name: `${session.fullName || activeUsername} (הסטורי שלך)`,
+        avatar:
+          session.avatarUrl ||
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(activeUsername)}`,
+        coverImage: newMediaUrl,
+        hasUnread: false,
+        slides: [newSlide],
+      };
+      return [newGroup, ...prev];
+    });
+
+    setCurrentUserIndex(targetUserIndex);
     setCurrentSlideIndex(0);
     setProgress(0);
     setNewCaption('');
     setIsCreatorOpen(false);
+
+    try {
+      const res = await fetch('/api/v1/stories', {
+        method: 'POST',
+        credentials: 'include',
+        headers: buildStoryAuthHeaders(session, true),
+        body: JSON.stringify({
+          mediaUrl: newMediaUrl,
+          caption,
+        }),
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        if (session.token) clearStoredAuthToken();
+        showToast('הסטורי נוסף מקומית — התחבר מחדש כדי לשמור בשרת');
+        return;
+      }
+
+      if (res.ok) {
+        const saved = (await res.json()) as RawBackendStory;
+        if (saved?.id != null) {
+          setStories((prev) =>
+            prev.map((g) => ({
+              ...g,
+              slides: g.slides.map((s) =>
+                s.id === tempId
+                  ? {
+                      ...s,
+                      id: String(saved.id),
+                      createdAt: formatStoryTime(saved.createdAt),
+                    }
+                  : s
+              ),
+            }))
+          );
+        }
+      }
+    } catch {
+      // Optimistic slide kept when offline
+    }
+
     showToast('הסטורי שלך פורסם בהצלחה!');
   };
 
@@ -247,7 +490,7 @@ export default function StoriesPage() {
                 setProgress(0);
               }}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
-                idx === currentUserIndex
+                idx === safeUserIdx
                   ? 'bg-gradient-to-r from-[#6366F1]/25 to-[#8B5CF6]/25 border border-indigo-400/50 text-white'
                   : 'text-[#94A3B8] hover:text-white border border-transparent'
               }`}
@@ -287,13 +530,13 @@ export default function StoriesPage() {
         </button>
 
         {/* Previous Story Card (Ghost on Right in RTL) */}
-        {currentUserIndex > 0 && (
+        {safeUserIdx > 0 && (
           <div
             onClick={handlePrevSlide}
             className="hidden lg:block w-60 h-[620px] rounded-3xl overflow-hidden opacity-40 scale-90 blur-[1px] hover:opacity-75 transition-all cursor-pointer border border-white/15 me-6 shadow-2xl shrink-0"
           >
             <img
-              src={stories[currentUserIndex - 1].slides[0].mediaUrl}
+              src={stories[safeUserIdx - 1].slides[0].mediaUrl}
               alt=""
               className="w-full h-full object-cover"
             />
@@ -335,8 +578,8 @@ export default function StoriesPage() {
             <div className="flex items-center gap-1.5 w-full">
               {currentUser.slides.map((slide, sIdx) => {
                 let fillWidth = '0%';
-                if (sIdx < currentSlideIndex) fillWidth = '100%';
-                else if (sIdx === currentSlideIndex) fillWidth = `${progress}%`;
+                if (sIdx < safeSlideIdx) fillWidth = '100%';
+                else if (sIdx === safeSlideIdx) fillWidth = `${progress}%`;
 
                 return (
                   <div key={slide.id} className="flex-1 h-1.5 bg-white/30 rounded-full overflow-hidden">
@@ -348,22 +591,27 @@ export default function StoriesPage() {
 
             {/* Author Info */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <Link
+                href={`/profile/${encodeURIComponent(currentUser.username)}`}
+                className="pointer-events-auto flex items-center gap-3 no-underline group"
+              >
                 <img
                   src={currentUser.avatar}
                   alt={currentUser.name}
-                  className="w-12 h-12 rounded-full border-2 border-[#6366F1] shadow-md object-cover bg-[#090A0F]"
+                  className="w-12 h-12 rounded-full border-2 border-[#6366F1] shadow-md object-cover bg-[#090A0F] transition-transform group-hover:scale-105"
                 />
                 <div className="text-start">
-                  <div className="font-bold text-sm text-white drop-shadow-md">{currentUser.name}</div>
+                  <div className="font-bold text-sm text-white drop-shadow-md group-hover:text-indigo-200 transition-colors">
+                    {currentUser.name}
+                  </div>
                   <div className="text-xs text-slate-300 drop-shadow-sm font-mono">
                     @{currentUser.username} &bull; {currentSlide.createdAt}
                   </div>
                 </div>
-              </div>
+              </Link>
 
               <span className="text-xs px-3 py-1 rounded-full bg-black/60 border border-white/20 text-white backdrop-blur-md font-mono">
-                {currentSlideIndex + 1}/{currentUser.slides.length}
+                {safeSlideIdx + 1}/{currentUser.slides.length}
               </span>
             </div>
           </div>
@@ -432,13 +680,13 @@ export default function StoriesPage() {
         </div>
 
         {/* Next Story Card (Ghost on Left in RTL) */}
-        {currentUserIndex < stories.length - 1 && (
+        {safeUserIdx < stories.length - 1 && (
           <div
             onClick={handleNextSlide}
             className="hidden lg:block w-60 h-[620px] rounded-3xl overflow-hidden opacity-40 scale-90 blur-[1px] hover:opacity-75 transition-all cursor-pointer border border-white/15 ms-6 shadow-2xl shrink-0"
           >
             <img
-              src={stories[currentUserIndex + 1].slides[0].mediaUrl}
+              src={stories[safeUserIdx + 1].slides[0].mediaUrl}
               alt=""
               className="w-full h-full object-cover"
             />

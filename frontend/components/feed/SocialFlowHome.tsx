@@ -9,6 +9,7 @@ import {
   Bot,
   CheckCircle2,
   Clapperboard,
+  CornerDownRight,
   Info,
   Loader2,
   MessageCircle,
@@ -41,6 +42,7 @@ import {
   PostCardSkeleton,
   type PostCardData,
   type PostPollData,
+  type ReactionTypeValue,
 } from '@/components/feed/PostCard';
 import { BadgePill, GradientButton } from '@/components/ui/GlassPrimitives';
 import { clearStoredAuthToken, isJwtExpired } from '@/lib/auth';
@@ -73,6 +75,8 @@ interface FeedCommentItem {
   authorAvatar: string;
   content: string;
   createdAt: string;
+  parentId?: string;
+  replyToUsername?: string;
 }
 
 interface RawFeedRecord {
@@ -84,6 +88,7 @@ interface RawFeedRecord {
   authorAvatar?: string;
   authorVerified?: boolean;
   content?: string;
+  quoteComment?: string | null;
   mediaUrls?: string[];
   tags?: string[];
   createdAt?: string;
@@ -93,13 +98,17 @@ interface RawFeedRecord {
   repostsCount?: number;
   isLiked?: boolean;
   likedByMe?: boolean;
+  userReaction?: ReactionTypeValue | null;
+  reactionCounts?: Record<string, number>;
   isBookmarked?: boolean;
   bookmarkedByMe?: boolean;
   isRepost?: boolean;
   isReposted?: boolean;
+  repostedByName?: string;
   isPinned?: boolean;
   poll?: PostPollData | null;
   attachedEntity?: PostCardData['attachedEntity'];
+  originalPost?: RawFeedRecord | null;
 }
 
 interface AgentRunResponse {
@@ -157,16 +166,6 @@ const STORIES_STRIP: StoryStripItem[] = [
       'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
     hasUnread: true,
     previewLabel: 'Liquid Glass',
-  },
-  {
-    id: 'story-yonatan',
-    username: 'yonatan',
-    name: 'יונתן רון',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Yonatan',
-    coverImage:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-    hasUnread: false,
-    previewLabel: 'Gateway',
   },
 ];
 
@@ -285,8 +284,10 @@ const INITIAL_COMMENTS_BY_POST: Record<string, FeedCommentItem[]> = {
       authorName: 'דניאל לוי',
       authorUsername: 'daniel',
       authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Daniel',
-      content: 'שילוב סוכן ה-LangGraph עם חיפוש ה-RAG במודאל Ctrl+K עובד מדהים.',
+      content: 'מסכים! וגם שילוב סוכן ה-LangGraph עם חיפוש ה-RAG ב-Ctrl+K עובד מדהים.',
       createdAt: 'לפני דקה',
+      parentId: 'c-101-1',
+      replyToUsername: 'noa',
     },
   ],
   '102': [
@@ -313,6 +314,30 @@ const INITIAL_COMMENTS_BY_POST: Record<string, FeedCommentItem[]> = {
   ],
 };
 
+function buildContextualSmartReplies(post?: PostCardData): string[] {
+  const text = (post?.content || '').toLowerCase();
+  const tags = (post?.tags || []).map((t) => t.toLowerCase());
+  if (text.includes('langgraph') || text.includes('ai') || tags.includes('ai_agents')) {
+    return [
+      'ארכיטקטורת ה-AI והסוכנים נראית חדה במיוחד! 🤖',
+      'מסקרן לראות איך ה-RAG משפר את הדיוק בפיד ✨',
+      'כל הכבוד על השילוב של Human-in-the-Loop 👏',
+    ];
+  }
+  if (text.includes('kafka') || text.includes('spring') || text.includes('elasticsearch')) {
+    return [
+      'ביצועים מרשימים, latency מתחת ל-25ms זה מטורף! ⚡',
+      'ארכיטקטורת Event-Driven נקייה ומדויקת 🔥',
+      'תודה על השיתוף, שמרתי לבדיקה אצלנו 💡',
+    ];
+  }
+  return [
+    'שיתוף מעולה, אהבתי מאוד את הגישה! 🔥',
+    'ממש מעורר השראה — תודה על התובנה 🙌',
+    'נראה מדהים ב-Obsidian Liquid Glass! ✨',
+  ];
+}
+
 function normalizeRawPost(raw: RawFeedRecord, idx: number): PostCardData {
   const username = raw.authorUsername || 'member';
   const id = raw.postId ?? raw.id ?? `feed-${idx}-${Date.now()}`;
@@ -328,19 +353,24 @@ function normalizeRawPost(raw: RawFeedRecord, idx: number): PostCardData {
         : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`),
     authorVerified: raw.authorVerified ?? true,
     content: raw.content || '',
+    quoteComment: raw.quoteComment ?? null,
     mediaUrls: Array.isArray(raw.mediaUrls) ? raw.mediaUrls : [],
     tags: Array.isArray(raw.tags) ? raw.tags : [],
     createdAt: raw.createdAt || new Date().toISOString(),
     likesCount: raw.likesCount ?? 0,
     commentsCount: raw.commentsCount ?? raw.commentCount ?? 0,
     repostsCount: raw.repostsCount ?? 0,
-    isLiked: Boolean(raw.isLiked ?? raw.likedByMe),
+    isLiked: Boolean(raw.isLiked ?? raw.likedByMe ?? raw.userReaction),
+    userReaction: raw.userReaction ?? (raw.isLiked || raw.likedByMe ? 'LIKE' : null),
+    reactionCounts: raw.reactionCounts,
     isBookmarked: Boolean(raw.isBookmarked ?? raw.bookmarkedByMe),
     isRepost: Boolean(raw.isRepost),
     isReposted: Boolean(raw.isReposted),
+    repostedByName: raw.repostedByName,
     isPinned: Boolean(raw.isPinned),
     poll: raw.poll ?? null,
     attachedEntity: raw.attachedEntity ?? null,
+    originalPost: raw.originalPost ? normalizeRawPost(raw.originalPost, idx + 1000) : null,
   };
 }
 
@@ -461,6 +491,9 @@ export function SocialFlowHome() {
   const [followingUsernames, setFollowingUsernames] = useState<string[]>(['noa', 'daniel']);
   const [trendingTags, setTrendingTags] = useState<TrendingTagItem[] | undefined>(undefined);
 
+  // Stories Strip State (synced with /api/v1/stories when live)
+  const [storiesStrip, setStoriesStrip] = useState<StoryStripItem[]>(STORIES_STRIP);
+
   // Search Modal State
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -471,6 +504,9 @@ export function SocialFlowHome() {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [replyingToComment, setReplyingToComment] = useState<FeedCommentItem | null>(null);
+  const [smartReplies, setSmartReplies] = useState<string[]>([]);
+  const [smartRepliesLoading, setSmartRepliesLoading] = useState(false);
 
   // LangGraph Agent Modal State
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
@@ -495,6 +531,7 @@ export function SocialFlowHome() {
   } | null>(null);
 
   const composerSectionRef = useRef<HTMLDivElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = useCallback(
     (message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -520,6 +557,58 @@ export function SocialFlowHome() {
     },
     [storedUser]
   );
+
+  // Sync live stories strip from /api/v1/stories (graceful fallback to STORIES_STRIP)
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStoriesStrip() {
+      try {
+        const res = await fetch('/api/v1/stories', {
+          credentials: 'include',
+          headers: buildAuthHeaders(false),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as Array<{
+          id?: string | number;
+          username?: string;
+          userAvatar?: string;
+          mediaUrl?: string;
+          caption?: string;
+        }>;
+        if (!cancelled && Array.isArray(data) && data.length > 0) {
+          const seen = new Set<string>(['idan']);
+          const liveOthers: StoryStripItem[] = [];
+          for (const item of data) {
+            const uname = item.username || '';
+            if (!uname || seen.has(uname)) continue;
+            seen.add(uname);
+            liveOthers.push({
+              id: `story-live-${item.id ?? uname}`,
+              username: uname,
+              name: uname,
+              avatar:
+                item.userAvatar ||
+                `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(uname)}`,
+              coverImage:
+                item.mediaUrl ||
+                'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80',
+              hasUnread: true,
+              previewLabel: item.caption ? item.caption.slice(0, 14) : 'Live Story',
+            });
+          }
+          if (liveOthers.length > 0) {
+            setStoriesStrip([STORIES_STRIP[0], ...liveOthers, ...STORIES_STRIP.slice(1).filter((s) => !seen.has(s.username))]);
+          }
+        }
+      } catch {
+        // Keep STORIES_STRIP curated fallback
+      }
+    }
+    loadStoriesStrip();
+    return () => {
+      cancelled = true;
+    };
+  }, [buildAuthHeaders]);
 
   // Load Trending Hashtags from feed-service with graceful fallback
   useEffect(() => {
@@ -687,8 +776,14 @@ export function SocialFlowHome() {
   const handleSearchResult = (item: SearchResultItem) => {
     if (item.type === 'tag') {
       handleSelectTag(item.title.replace(/^#/, ''));
-    } else if (item.type === 'user' && item.authorUsername) {
-      router.push('/profile');
+    } else if (item.type === 'user') {
+      const targetUser =
+        item.authorUsername ||
+        item.subtitle?.match(/@([\w.-]+)/)?.[1] ||
+        item.title.replace(/^@/, '').trim();
+      if (targetUser) {
+        router.push(`/profile/${encodeURIComponent(targetUser)}`);
+      }
     } else if (item.type === 'post') {
       const existing = posts.find((p) => String(p.id) === String(item.id));
       if (!existing && item.content) {
@@ -711,51 +806,100 @@ export function SocialFlowHome() {
     }
   };
 
-  // Comments Drawer Handlers
+  // Comments Drawer Handlers + AI Smart Replies
   const handleOpenComments = async (postId: number | string) => {
     const key = String(postId);
+    const targetPost = posts.find((p) => String(p.id) === key);
+
     setCommentsPostId(postId);
     setNewCommentText('');
+    setReplyingToComment(null);
     setCommentsLoading(true);
+    setSmartRepliesLoading(true);
+    setSmartReplies(buildContextualSmartReplies(targetPost));
 
-    try {
-      const res = await fetch(`/api/v1/posts/${encodeURIComponent(key)}/comments`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: buildAuthHeaders(false),
-      });
-      if (res.ok) {
-        const list = (await res.json()) as Array<{
-          id?: string | number;
-          postId?: string | number;
-          authorUsername?: string;
-          authorAvatar?: string;
-          content?: string;
-          createdAt?: string;
-        }>;
-        if (Array.isArray(list) && list.length > 0) {
-          const mapped: FeedCommentItem[] = list.map((c, idx) => {
-            const uname = c.authorUsername || 'member';
-            return {
-              id: String(c.id ?? `c-${idx}`),
-              postId,
-              authorName: uname === 'idan' ? 'עידן קזם' : `@${uname}`,
-              authorUsername: uname,
-              authorAvatar:
-                c.authorAvatar ||
-                `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(uname)}`,
-              content: c.content || '',
-              createdAt: formatCommentTime(c.createdAt || ''),
-            };
-          });
-          setCommentsByPost((prev) => ({ ...prev, [key]: mapped }));
+    const fetchCommentsPromise = (async () => {
+      try {
+        const res = await fetch(`/api/v1/posts/${encodeURIComponent(key)}/comments`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: buildAuthHeaders(false),
+        });
+        if (res.ok) {
+          const list = (await res.json()) as Array<{
+            id?: string | number;
+            postId?: string | number;
+            authorUsername?: string;
+            authorAvatar?: string;
+            content?: string;
+            createdAt?: string;
+            parentId?: string | number;
+            replyToUsername?: string;
+          }>;
+          if (Array.isArray(list) && list.length > 0) {
+            setCommentsByPost((prev) => {
+              const existingById = new Map((prev[key] ?? []).map((item) => [item.id, item]));
+              const mapped: FeedCommentItem[] = list.map((c, idx) => {
+                const cid = String(c.id ?? `c-${idx}`);
+                const uname = c.authorUsername || 'member';
+                const prevItem = existingById.get(cid);
+                return {
+                  id: cid,
+                  postId,
+                  authorName: uname === 'idan' ? 'עידן קזם' : `@${uname}`,
+                  authorUsername: uname,
+                  authorAvatar:
+                    c.authorAvatar ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(uname)}`,
+                  content: c.content || '',
+                  createdAt: formatCommentTime(c.createdAt || ''),
+                  parentId: c.parentId !== undefined ? String(c.parentId) : prevItem?.parentId,
+                  replyToUsername: c.replyToUsername ?? prevItem?.replyToUsername,
+                };
+              });
+              const mappedIds = new Set(mapped.map((m) => m.id));
+              const localPending = (prev[key] ?? []).filter(
+                (item) => item.id.startsWith('temp-') && !mappedIds.has(item.id)
+              );
+              return { ...prev, [key]: [...localPending, ...mapped] };
+            });
+          }
         }
+      } catch {
+        // Keep local/initial comments fallback
+      } finally {
+        setCommentsLoading(false);
       }
-    } catch {
-      // Keep local/initial comments fallback
-    } finally {
-      setCommentsLoading(false);
-    }
+    })();
+
+    const fetchSmartRepliesPromise = (async () => {
+      try {
+        const res = await fetch('/api/v1/ai/smart-replies', {
+          method: 'POST',
+          credentials: 'include',
+          headers: buildAuthHeaders(true),
+          body: JSON.stringify({ content: targetPost?.content || '' }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { replies?: string[] } | string[];
+          const list = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.replies)
+            ? data.replies
+            : [];
+          const cleaned = list.map((r) => String(r).trim()).filter(Boolean).slice(0, 3);
+          if (cleaned.length > 0) {
+            setSmartReplies(cleaned);
+          }
+        }
+      } catch {
+        // Keep contextual fallback smart replies
+      } finally {
+        setSmartRepliesLoading(false);
+      }
+    })();
+
+    await Promise.allSettled([fetchCommentsPromise, fetchSmartRepliesPromise]);
   };
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -764,6 +908,7 @@ export function SocialFlowHome() {
 
     const key = String(commentsPostId);
     const trimmed = newCommentText.trim();
+    const replyTarget = replyingToComment;
     const tempId = `temp-${Date.now()}`;
     const optimisticComment: FeedCommentItem = {
       id: tempId,
@@ -775,13 +920,18 @@ export function SocialFlowHome() {
         `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(navUser.handle)}`,
       content: trimmed,
       createdAt: 'עכשיו',
+      parentId: replyTarget?.id,
+      replyToUsername: replyTarget?.authorUsername,
     };
 
     setSubmittingComment(true);
     setNewCommentText('');
+    setReplyingToComment(null);
     setCommentsByPost((prev) => ({
       ...prev,
-      [key]: [optimisticComment, ...(prev[key] ?? [])],
+      [key]: replyTarget
+        ? [...(prev[key] ?? []), optimisticComment]
+        : [optimisticComment, ...(prev[key] ?? [])],
     }));
     setPosts((prev) =>
       prev.map((p) =>
@@ -796,7 +946,12 @@ export function SocialFlowHome() {
         method: 'POST',
         credentials: 'include',
         headers: buildAuthHeaders(true),
-        body: JSON.stringify({ content: trimmed }),
+        body: JSON.stringify({
+          content: trimmed,
+          ...(replyTarget
+            ? { parentId: replyTarget.id, replyToUsername: replyTarget.authorUsername }
+            : {}),
+        }),
       });
 
       if (res.ok) {
@@ -1014,6 +1169,117 @@ export function SocialFlowHome() {
     ? posts.find((p) => String(p.id) === String(commentsPostId))
     : undefined;
 
+  const { rootComments, childrenByParent } = useMemo(() => {
+    const idSet = new Set(activeCommentsList.map((c) => c.id));
+    const map = new Map<string, FeedCommentItem[]>();
+    const roots: FeedCommentItem[] = [];
+
+    for (const c of activeCommentsList) {
+      if (c.parentId && idSet.has(c.parentId)) {
+        const list = map.get(c.parentId) ?? [];
+        list.push(c);
+        map.set(c.parentId, list);
+      } else {
+        roots.push(c);
+      }
+    }
+    return { rootComments: roots, childrenByParent: map };
+  }, [activeCommentsList]);
+
+  const renderCommentNode = (comment: FeedCommentItem, depth = 0): React.ReactNode => {
+    const replies = childrenByParent.get(comment.id) ?? [];
+    const hasReplies = replies.length > 0;
+
+    return (
+      <div key={comment.id} className="space-y-2">
+        <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#090A0F]/60 p-3.5 hover:border-indigo-500/30 transition-colors">
+          <div className="flex flex-col items-center shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setCommentsPostId(null);
+                router.push(`/profile/${encodeURIComponent(comment.authorUsername)}`);
+              }}
+              className="rounded-full cursor-pointer"
+            >
+              <img
+                src={comment.authorAvatar}
+                alt={comment.authorName}
+                className="h-8 w-8 rounded-full border border-white/15 object-cover"
+              />
+            </button>
+            {hasReplies && (
+              <div
+                aria-hidden="true"
+                className="w-0.5 flex-1 min-h-[18px] mt-1.5 rounded-full bg-gradient-to-b from-[#6366F1]/75 via-[#8B5CF6]/45 to-transparent"
+              />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1 text-start">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommentsPostId(null);
+                    router.push(`/profile/${encodeURIComponent(comment.authorUsername)}`);
+                  }}
+                  className="text-xs font-bold text-[#F8FAFC] hover:text-[#6366F1] transition-colors truncate cursor-pointer"
+                >
+                  {comment.authorName}
+                </button>
+                <span className="font-mono text-[10px] text-[#64748B] truncate">
+                  @{comment.authorUsername}
+                </span>
+              </div>
+              <span className="font-mono text-[10px] text-[#64748B] shrink-0">
+                {comment.createdAt}
+              </span>
+            </div>
+
+            {comment.replyToUsername && (
+              <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-mono text-[#8B5CF6]">
+                <CornerDownRight className="h-3 w-3" />
+                <span>בתגובה ל-@{comment.replyToUsername}</span>
+              </div>
+            )}
+
+            <p dir="auto" className="mt-1 text-xs sm:text-sm leading-relaxed text-[#94A3B8]">
+              {comment.content}
+            </p>
+
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setReplyingToComment(comment);
+                  setTimeout(() => commentInputRef.current?.focus(), 20);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-300 hover:text-indigo-200 transition-colors cursor-pointer"
+              >
+                <CornerDownRight className="h-3 w-3" />
+                <span>הגב</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {hasReplies && (
+          <div
+            className={
+              depth < 3
+                ? 'ms-4 ps-3.5 border-s-2 border-[#6366F1]/40 space-y-2'
+                : 'space-y-2'
+            }
+          >
+            {replies.map((reply) => renderCommentNode(reply, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <AppShell
       activePath="/"
@@ -1089,7 +1355,7 @@ export function SocialFlowHome() {
         </div>
 
         <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-0.5">
-          {STORIES_STRIP.map((story, idx) => (
+          {storiesStrip.map((story, idx) => (
             <Link
               key={story.id}
               href="/stories"
@@ -1247,8 +1513,25 @@ export function SocialFlowHome() {
               currentUserId={storedUser.userId ?? 1}
               currentUsername={navUser.handle}
               onHashtagClick={(tag) => handleSelectTag(tag)}
-              onAuthorClick={() => router.push('/profile')}
+              onAuthorClick={(username) =>
+                router.push(`/profile/${encodeURIComponent(username)}`)
+              }
               onCommentClick={handleOpenComments}
+              onReactionChange={(postId, userReaction, likesCount, reactionCounts) => {
+                setPosts((prev) =>
+                  prev.map((p) =>
+                    String(p.id) === String(postId)
+                      ? {
+                          ...p,
+                          isLiked: userReaction !== null,
+                          userReaction,
+                          likesCount,
+                          reactionCounts,
+                        }
+                      : p
+                  )
+                );
+              }}
               onLikeChange={(postId, liked, likesCount) => {
                 setPosts((prev) =>
                   prev.map((p) =>
@@ -1258,22 +1541,67 @@ export function SocialFlowHome() {
                   )
                 );
               }}
-              onRepost={(postId) => {
-                setPosts((prev) =>
-                  prev.map((p) =>
+              onRepost={(postId, quoteComment, createdRepost) => {
+                const targetPost = posts.find((p) => String(p.id) === String(postId));
+                setPosts((prev) => {
+                  const updated = prev.map((p) =>
                     String(p.id) === String(postId)
                       ? {
                           ...p,
-                          isReposted: !p.isReposted,
-                          repostsCount: Math.max(
-                            0,
-                            (p.repostsCount ?? 0) + (p.isReposted ? -1 : 1)
-                          ),
+                          isReposted: true,
+                          repostsCount: (p.repostsCount ?? 0) + 1,
                         }
                       : p
+                  );
+                  if (quoteComment && targetPost) {
+                    const normalizedQuote: PostCardData = createdRepost
+                      ? {
+                          ...normalizeRawPost(createdRepost as unknown as RawFeedRecord, 0),
+                          authorName: createdRepost.authorName || navUser.name,
+                          authorAvatar: createdRepost.authorAvatar || navUser.avatarUrl,
+                          originalPost:
+                            createdRepost.originalPost ?? targetPost,
+                        }
+                      : {
+                          id: `quote-${Date.now()}`,
+                          authorId: storedUser.userId ?? 1,
+                          authorUsername: navUser.handle,
+                          authorName: navUser.name,
+                          authorAvatar: navUser.avatarUrl,
+                          authorVerified: true,
+                          content: quoteComment,
+                          quoteComment,
+                          createdAt: new Date().toISOString(),
+                          likesCount: 0,
+                          commentsCount: 0,
+                          repostsCount: 0,
+                          isRepost: true,
+                          repostedByName: navUser.name,
+                          originalPost: targetPost,
+                        };
+                    return [normalizedQuote, ...updated];
+                  }
+                  return updated;
+                });
+                showToast(
+                  quoteComment ? 'הציטוט פורסם בפיד! 🔁✨' : 'הפוסט שותף מחדש! 🔁',
+                  'success'
+                );
+              }}
+              onPinChange={(postId, nextPinned) => {
+                setPosts((prev) =>
+                  prev.map((p) =>
+                    String(p.id) === String(postId) ? { ...p, isPinned: nextPinned } : p
                   )
                 );
-                showToast('הפוסט שותף מחדש! 🔁', 'success');
+                showToast(
+                  nextPinned ? 'הפוסט הוצמד בהצלחה 📌' : 'הצמדת הפוסט בוטלה',
+                  'info'
+                );
+              }}
+              onDeletePost={(postId) => {
+                setPosts((prev) => prev.filter((p) => String(p.id) !== String(postId)));
+                showToast('הפוסט נמחק בהצלחה 🗑️', 'info');
               }}
               onBookmarkChange={(postId, bookmarked) => {
                 setPosts((prev) =>
@@ -1367,64 +1695,100 @@ export function SocialFlowHome() {
                     <Loader2 className="h-4 w-4 animate-spin text-[#6366F1]" />
                     <span>טוען תגובות...</span>
                   </div>
-                ) : activeCommentsList.length === 0 ? (
+                ) : rootComments.length === 0 ? (
                   <div className="py-8 text-center text-sm text-[#64748B]">
                     עדיין אין תגובות. היה הראשון להגיב!
                   </div>
                 ) : (
-                  activeCommentsList.map((comment) => (
-                    <div
-                      key={comment.id}
-                      className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#090A0F]/60 p-3.5"
-                    >
-                      <img
-                        src={comment.authorAvatar}
-                        alt={comment.authorName}
-                        className="h-8 w-8 shrink-0 rounded-full border border-white/15 object-cover"
-                      />
-                      <div className="min-w-0 flex-1 text-start">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-[#F8FAFC]">
-                            {comment.authorName}
-                          </span>
-                          <span className="font-mono text-[10px] text-[#64748B]">
-                            {comment.createdAt}
-                          </span>
-                        </div>
-                        <p
-                          dir="auto"
-                          className="mt-1 text-xs sm:text-sm leading-relaxed text-[#94A3B8]"
-                        >
-                          {comment.content}
-                        </p>
-                      </div>
-                    </div>
-                  ))
+                  rootComments.map((comment) => renderCommentNode(comment, 0))
                 )}
               </div>
 
-              <form
-                onSubmit={handleSubmitComment}
-                className="flex items-center gap-2 border-t border-white/10 bg-[#090A0F]/75 p-4"
-              >
-                <input
-                  type="text"
-                  dir="auto"
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                  placeholder="כתוב תגובה עניינית..."
-                  className="flex-1 rounded-xl border border-white/10 bg-[#121521] px-3.5 py-2.5 text-sm text-[#F8FAFC] placeholder-[#64748B] outline-none focus:border-[#6366F1]"
-                />
-                <GradientButton
-                  type="submit"
-                  size="sm"
-                  disabled={!newCommentText.trim() || submittingComment}
-                  isLoading={submittingComment}
-                  leftIcon={<Send className="h-3.5 w-3.5" />}
-                >
-                  שלח
-                </GradientButton>
-              </form>
+              <div className="border-t border-white/10 bg-[#090A0F]/75 p-4 space-y-2.5">
+                {/* AI Smart Replies Chips */}
+                {(smartReplies.length > 0 || smartRepliesLoading) && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-indigo-300">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-[#8B5CF6]" />
+                        <span>AI Smart Replies</span>
+                      </span>
+                      {smartRepliesLoading && (
+                        <Loader2 className="h-3 w-3 animate-spin text-[#8B5CF6]" />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {smartReplies.map((reply) => (
+                        <button
+                          key={reply}
+                          type="button"
+                          dir="auto"
+                          onClick={() => {
+                            setNewCommentText(reply);
+                            commentInputRef.current?.focus();
+                          }}
+                          className="rounded-full border border-[#8B5CF6]/35 bg-[#8B5CF6]/12 px-3 py-1 text-xs font-medium text-violet-200 hover:border-[#8B5CF6]/60 hover:bg-[#8B5CF6]/25 transition-colors cursor-pointer text-start"
+                        >
+                          {reply}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dismissible @username Reply Banner */}
+                <AnimatePresence>
+                  {replyingToComment && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-[#6366F1]/35 bg-[#6366F1]/12 px-3 py-1.5 text-xs text-indigo-200"
+                    >
+                      <span className="inline-flex items-center gap-1.5 truncate">
+                        <CornerDownRight className="h-3.5 w-3.5 text-[#6366F1] shrink-0" />
+                        <span>משיב לתגובה של</span>
+                        <span className="font-mono font-bold">
+                          @{replyingToComment.authorUsername}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setReplyingToComment(null)}
+                        aria-label="בטל מענה לתגובה"
+                        className="rounded-lg p-1 text-indigo-300 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <form onSubmit={handleSubmitComment} className="flex items-center gap-2">
+                  <input
+                    ref={commentInputRef}
+                    type="text"
+                    dir="auto"
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    placeholder={
+                      replyingToComment
+                        ? `הגב ל-@${replyingToComment.authorUsername}...`
+                        : 'כתוב תגובה עניינית...'
+                    }
+                    className="flex-1 rounded-xl border border-white/10 bg-[#121521] px-3.5 py-2.5 text-sm text-[#F8FAFC] placeholder-[#64748B] outline-none focus:border-[#6366F1]"
+                  />
+                  <GradientButton
+                    type="submit"
+                    size="sm"
+                    disabled={!newCommentText.trim() || submittingComment}
+                    isLoading={submittingComment}
+                    leftIcon={<Send className="h-3.5 w-3.5" />}
+                  >
+                    שלח
+                  </GradientButton>
+                </form>
+              </div>
             </motion.div>
           </motion.div>
         )}

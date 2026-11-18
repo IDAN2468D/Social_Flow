@@ -39,3 +39,19 @@ def test_agent_graph_execution():
     assert "moderation_status" in result
     assert result["moderation_status"].get("is_safe") is True
     assert len(result.get("logs", [])) >= 3
+
+
+def test_ai_health_endpoints():
+    """Verify /health and /api/v1/ai/health return identical UP payloads"""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    res_root = client.get("/health")
+    res_v1 = client.get("/api/v1/ai/health")
+
+    assert res_root.status_code == 200
+    assert res_v1.status_code == 200
+    assert res_v1.json() == res_root.json()
+    assert res_v1.json()["status"] == "UP"
+    assert res_v1.json()["service"] == "ai-service"

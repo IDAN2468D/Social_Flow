@@ -12,4 +12,7 @@ public class PostLikedEvent {
     private String username;
     private Long authorId;
     private boolean liked;
+
+    @Builder.Default
+    private String eventType = "POST_LIKED";
 }

@@ -5,6 +5,7 @@ import com.socialflow.post.event.CommentCreatedEvent;
 import com.socialflow.post.event.PostCreatedEvent;
 import com.socialflow.post.event.PostDeletedEvent;
 import com.socialflow.post.event.PostLikedEvent;
+import com.socialflow.post.event.PostPinnedEvent;
 import com.socialflow.post.event.PostRepostedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,10 @@ public class PostKafkaProducer {
 
     public void emitPostDeleted(PostDeletedEvent event) {
         sendEvent("POST_DELETED", event.getPostId().toString(), event);
+    }
+
+    public void emitPostPinned(PostPinnedEvent event) {
+        sendEvent("POST_PINNED", event.getPostId().toString(), event);
     }
 
     private void sendEvent(String eventType, String key, Object payload) {

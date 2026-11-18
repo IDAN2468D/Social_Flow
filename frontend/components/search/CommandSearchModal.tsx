@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowUpRight,
   CornerDownLeft,
+  FileText,
   Hash,
   LoaderCircle,
   Search,
@@ -12,8 +14,10 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { isJwtExpired } from '@/lib/auth';
 
 export type SearchResultType = 'post' | 'user' | 'tag';
+export type SearchFilterTab = 'ALL' | SearchResultType;
 
 export interface SearchResultItem {
   id: string;
@@ -41,6 +45,13 @@ export interface CommandSearchModalProps {
   placeholder?: string;
   enableShortcut?: boolean;
 }
+
+const SEARCH_FILTER_TABS: { id: SearchFilterTab; label: string }[] = [
+  { id: 'ALL', label: 'הכל' },
+  { id: 'post', label: 'פוסטים' },
+  { id: 'user', label: 'משתמשים' },
+  { id: 'tag', label: 'תגיות' },
+];
 
 const FALLBACK_RESULTS: SearchResultItem[] = [
   {
@@ -71,6 +82,30 @@ const FALLBACK_RESULTS: SearchResultItem[] = [
     tags: ['Kafka', 'AI_Agents', 'LiquidGlass'],
     createdAt: 'לפני 25 דקות',
     likesCount: 42,
+    source: 'fallback',
+  },
+  {
+    id: 'fb-user-idan',
+    type: 'user',
+    title: 'עידן קזם',
+    subtitle: '@idan · Core Architect',
+    content: 'Lead Architect @ SocialFlow • Microservices, Kafka, Elasticsearch & LangGraph AI Agents.',
+    authorName: 'עידן קזם',
+    authorUsername: 'idan',
+    authorAvatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=idan',
+    tags: ['SocialFlow', 'LangGraph'],
+    source: 'fallback',
+  },
+  {
+    id: 'fb-user-noa',
+    type: 'user',
+    title: 'נועה כהן',
+    subtitle: '@noa · AI Product & LangGraph Lead',
+    content: 'Autonomous AI Agents, RAG Search & Bilingual Liquid Glass UX.',
+    authorName: 'נועה כהן',
+    authorUsername: 'noa',
+    authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Noa',
+    tags: ['LangGraph', 'AI_Agents'],
     source: 'fallback',
   },
   {
@@ -117,34 +152,142 @@ interface RawSearchPost {
   likesCount?: number;
 }
 
-function normalizeSearchPayload(data: unknown): SearchResultItem[] {
-  const rawList: RawSearchPost[] = Array.isArray(data)
-    ? (data as RawSearchPost[])
-    : data && typeof data === 'object' && Array.isArray((data as { content?: unknown[] }).content)
-      ? ((data as { content: RawSearchPost[] }).content)
-      : [];
+interface RawSearchUser {
+  id?: string | number;
+  userId?: string | number;
+  username?: string;
+  authorUsername?: string;
+  fullName?: string;
+  name?: string;
+  avatar?: string;
+  avatarUrl?: string;
+  profileImageUrl?: string;
+  bio?: string;
+  followersCount?: number;
+}
 
-  return rawList
-    .filter((item) => item && (item.content || item.authorUsername))
-    .map((item, idx) => {
-      const username = item.authorUsername || 'member';
-      const displayName = item.authorName || `@${username}`;
-      return {
-        id: String(item.id ?? item.postId ?? `es-${idx}`),
-        type: 'post' as const,
-        title: `${displayName} · @${username}`,
-        subtitle: item.createdAt ? `${item.createdAt} · Elasticsearch` : 'Elasticsearch Index',
-        content: item.content || '',
-        authorName: displayName,
-        authorUsername: username,
-        authorAvatar:
-          item.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`,
-        tags: Array.isArray(item.tags) ? item.tags : [],
-        createdAt: item.createdAt,
-        likesCount: item.likesCount,
-        source: 'elasticsearch' as const,
-      };
-    });
+interface RawSearchTag {
+  tag?: string;
+  name?: string;
+  hashtag?: string;
+  count?: number;
+  postsCount?: number;
+}
+
+interface MultiSearchResponse {
+  posts?: RawSearchPost[];
+  users?: RawSearchUser[];
+  tags?: Array<string | RawSearchTag>;
+  content?: RawSearchPost[];
+}
+
+function normalizePostItem(item: RawSearchPost, idx: number): SearchResultItem {
+  const username = item.authorUsername || 'member';
+  const displayName = item.authorName || `@${username}`;
+  return {
+    id: `post-${String(item.id ?? item.postId ?? `es-${idx}`)}`,
+    type: 'post',
+    title: `${displayName} · @${username}`,
+    subtitle: item.createdAt ? `${item.createdAt} · Elasticsearch` : 'Elasticsearch Index',
+    content: item.content || '',
+    authorName: displayName,
+    authorUsername: username,
+    authorAvatar:
+      item.authorAvatar ||
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`,
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    createdAt: item.createdAt,
+    likesCount: item.likesCount,
+    source: 'elasticsearch',
+  };
+}
+
+function normalizeUserItem(item: RawSearchUser, idx: number): SearchResultItem | null {
+  const username = (item.username || item.authorUsername || '').trim();
+  if (!username) return null;
+  const displayName = item.fullName || item.name || `@${username}`;
+  const avatar =
+    item.avatar ||
+    item.profileImageUrl ||
+    item.avatarUrl ||
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;
+
+  return {
+    id: `user-${String(item.id ?? item.userId ?? `${username}-${idx}`)}`,
+    type: 'user',
+    title: displayName,
+    subtitle:
+      typeof item.followersCount === 'number'
+        ? `@${username} · ${item.followersCount} עוקבים`
+        : `@${username} · פרופיל משתמש`,
+    content: item.bio || `צפה בפרופיל ובפוסטים של @${username}`,
+    authorName: displayName,
+    authorUsername: username,
+    authorAvatar: avatar,
+    source: 'elasticsearch',
+  };
+}
+
+function normalizeTagItem(raw: string | RawSearchTag, idx: number): SearchResultItem | null {
+  const rawName =
+    typeof raw === 'string' ? raw : raw.tag || raw.name || raw.hashtag || '';
+  const cleanTag = rawName.replace(/^#/, '').trim();
+  if (!cleanTag) return null;
+
+  const count =
+    typeof raw === 'object' ? raw.count ?? raw.postsCount : undefined;
+
+  return {
+    id: `tag-${cleanTag}-${idx}`,
+    type: 'tag',
+    title: `#${cleanTag}`,
+    subtitle: typeof count === 'number' ? `${count} פוסטים` : 'תגית בקהילה',
+    content: `סנן את הפיד לפי התגית #${cleanTag}`,
+    tags: [cleanTag],
+    source: 'elasticsearch',
+  };
+}
+
+function normalizeSearchPayload(data: unknown): SearchResultItem[] {
+  if (!data) return [];
+
+  if (Array.isArray(data)) {
+    return (data as RawSearchPost[])
+      .filter((item) => item && (item.content || item.authorUsername))
+      .map((item, idx) => normalizePostItem(item, idx));
+  }
+
+  if (typeof data === 'object') {
+    const payload = data as MultiSearchResponse;
+
+    if (
+      Array.isArray(payload.posts) ||
+      Array.isArray(payload.users) ||
+      Array.isArray(payload.tags)
+    ) {
+      const normalizedPosts = (payload.posts ?? [])
+        .filter((item) => item && (item.content || item.authorUsername))
+        .map((item, idx) => normalizePostItem(item, idx));
+
+      const normalizedUsers = (payload.users ?? [])
+        .map((item, idx) => normalizeUserItem(item, idx))
+        .filter((item): item is SearchResultItem => item !== null);
+
+      const normalizedTags = (payload.tags ?? [])
+        .map((item, idx) => normalizeTagItem(item, idx))
+        .filter((item): item is SearchResultItem => item !== null);
+
+      return [...normalizedPosts, ...normalizedUsers, ...normalizedTags];
+    }
+
+    if (Array.isArray(payload.content)) {
+      return payload.content
+        .filter((item) => item && (item.content || item.authorUsername))
+        .map((item, idx) => normalizePostItem(item, idx));
+    }
+  }
+
+  return [];
 }
 
 function filterFallback(query: string): SearchResultItem[] {
@@ -155,10 +298,28 @@ function filterFallback(query: string): SearchResultItem[] {
     (item) =>
       item.title.toLowerCase().includes(cleanQ) ||
       item.content.toLowerCase().includes(cleanQ) ||
+      (item.authorUsername?.toLowerCase().includes(cleanQ) ?? false) ||
       (item.subtitle?.toLowerCase().includes(cleanQ) ?? false) ||
       (item.tags?.some((t) => t.toLowerCase().includes(cleanQ)) ?? false)
   );
-  return matched.length > 0 ? matched : FALLBACK_RESULTS.slice(0, 3);
+  return matched.length > 0 ? matched : FALLBACK_RESULTS;
+}
+
+function getSearchAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (typeof window === 'undefined') return headers;
+  try {
+    const raw = localStorage.getItem('socialflow_user');
+    if (raw) {
+      const parsed = JSON.parse(raw) as { token?: string };
+      if (parsed?.token && !isJwtExpired(parsed.token)) {
+        headers.Authorization = `Bearer ${parsed.token}`;
+      }
+    }
+  } catch {
+    // Ignore storage issues
+  }
+  return headers;
 }
 
 export function CommandSearchModal({
@@ -172,11 +333,13 @@ export function CommandSearchModal({
   placeholder = 'חפש פוסטים, משתמשים או #האשטאגים... (Search posts, users, tags)',
   enableShortcut = true,
 }: CommandSearchModalProps) {
+  const router = useRouter();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const isOpen = isControlled ? controlledOpen : internalOpen;
 
   const [query, setQuery] = useState(initialQuery);
+  const [activeFilter, setActiveFilter] = useState<SearchFilterTab>('ALL');
   const [results, setResults] = useState<SearchResultItem[]>(FALLBACK_RESULTS);
   const [isLoading, setIsLoading] = useState(false);
   const [resultSource, setResultSource] = useState<'elasticsearch' | 'fallback'>('fallback');
@@ -223,7 +386,7 @@ export function CommandSearchModal({
     }
   }, [isOpen]);
 
-  // Debounced live GET /api/v1/search?query=...
+  // Debounced live GET /api/v1/search/multi?q=... (with fallback to /api/v1/search?q=...)
   useEffect(() => {
     if (!isOpen) return;
     const trimmed = query.trim();
@@ -238,13 +401,25 @@ export function CommandSearchModal({
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setIsLoading(true);
+      const headers = getSearchAuthHeaders();
+
       try {
         const encoded = encodeURIComponent(trimmed);
-        const res = await fetch(`/api/v1/search?query=${encoded}&q=${encoded}`, {
+        let res = await fetch(`/api/v1/search/multi?q=${encoded}`, {
           method: 'GET',
+          credentials: 'include',
           signal: controller.signal,
-          headers: { Accept: 'application/json' },
+          headers,
         });
+
+        if (!res.ok) {
+          res = await fetch(`/api/v1/search?q=${encoded}&query=${encoded}`, {
+            method: 'GET',
+            credentials: 'include',
+            signal: controller.signal,
+            headers,
+          });
+        }
 
         if (!res.ok) {
           throw new Error(`Search HTTP ${res.status}`);
@@ -277,6 +452,15 @@ export function CommandSearchModal({
     };
   }, [query, isOpen]);
 
+  const filteredResults = useMemo(
+    () => (activeFilter === 'ALL' ? results : results.filter((item) => item.type === activeFilter)),
+    [results, activeFilter]
+  );
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [activeFilter]);
+
   const quickTags = useMemo(
     () => ['Nextjs15', 'LangGraph', 'Kafka', 'Elasticsearch', 'LiquidGlass'],
     []
@@ -286,21 +470,38 @@ export function CommandSearchModal({
     if (item.type === 'tag') {
       const cleanTag = item.title.replace(/^#/, '');
       onSelectTag?.(cleanTag);
+      onSelectResult?.(item);
+    } else if (item.type === 'user') {
+      const resolvedUsername = (
+        item.authorUsername || item.title.replace(/^@/, '')
+      ).trim();
+      const normalizedItem: SearchResultItem = {
+        ...item,
+        authorUsername: resolvedUsername,
+      };
+      if (onSelectResult) {
+        onSelectResult(normalizedItem);
+      } else if (resolvedUsername) {
+        router.push(`/profile/${encodeURIComponent(resolvedUsername)}`);
+      }
+    } else {
+      onSelectResult?.(item);
     }
-    onSelectResult?.(item);
     closeModal();
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex((prev) => (results.length ? (prev + 1) % results.length : 0));
+      setActiveIndex((prev) => (filteredResults.length ? (prev + 1) % filteredResults.length : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex((prev) => (results.length ? (prev - 1 + results.length) % results.length : 0));
-    } else if (e.key === 'Enter' && results[activeIndex]) {
+      setActiveIndex((prev) =>
+        filteredResults.length ? (prev - 1 + filteredResults.length) % filteredResults.length : 0
+      );
+    } else if (e.key === 'Enter' && filteredResults[activeIndex]) {
       e.preventDefault();
-      handleChooseResult(results[activeIndex]);
+      handleChooseResult(filteredResults[activeIndex]);
     }
   };
 
@@ -365,20 +566,38 @@ export function CommandSearchModal({
               </button>
             </div>
 
-            {/* Quick Tag Chips & Telemetry Pill */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02] px-4 py-2.5 sm:px-5">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {quickTags.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => setQuery(tag)}
-                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 font-mono text-[11px] text-[#94A3B8] hover:border-indigo-500/40 hover:bg-indigo-500/15 hover:text-[#F8FAFC] transition-colors cursor-pointer"
-                  >
-                    <Hash className="h-3 w-3 text-[#6366F1]" />
-                    <span>{tag}</span>
-                  </button>
-                ))}
+            {/* Filter Tabs Row */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02] px-4 py-2 sm:px-5">
+              <div
+                role="tablist"
+                aria-label="סינון תוצאות חיפוש"
+                className="flex items-center gap-1.5"
+              >
+                {SEARCH_FILTER_TABS.map((tab) => {
+                  const isActive = activeFilter === tab.id;
+                  const count =
+                    tab.id === 'ALL'
+                      ? results.length
+                      : results.filter((r) => r.type === tab.id).length;
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setActiveFilter(tab.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                        isActive
+                          ? 'border-indigo-400/50 bg-indigo-500/20 text-indigo-200 shadow-[0_0_16px_-6px_rgba(99,102,241,0.5)]'
+                          : 'border-white/10 bg-white/[0.03] text-[#94A3B8] hover:border-white/20 hover:text-[#F8FAFC]'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className="font-mono text-[10px] opacity-75">{count}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[#94A3B8]">
@@ -393,6 +612,21 @@ export function CommandSearchModal({
                   {resultSource === 'elasticsearch' ? 'Elasticsearch Live' : 'Instant Index'}
                 </span>
               </span>
+            </div>
+
+            {/* Quick Tag Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-[#090A0F]/40 px-4 py-2 sm:px-5">
+              {quickTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setQuery(tag)}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 font-mono text-[11px] text-[#94A3B8] hover:border-indigo-500/40 hover:bg-indigo-500/15 hover:text-[#F8FAFC] transition-colors cursor-pointer"
+                >
+                  <Hash className="h-3 w-3 text-[#6366F1]" />
+                  <span>{tag}</span>
+                </button>
+              ))}
             </div>
 
             {/* AI RAG Shortcut Row when user typed a query */}
@@ -423,81 +657,89 @@ export function CommandSearchModal({
             )}
 
             {/* Results List */}
-            <div className="max-h-[54vh] overflow-y-auto p-2 sm:p-3 space-y-1">
-              {results.map((item, idx) => {
-                const isSelected = idx === activeIndex;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onMouseEnter={() => setActiveIndex(idx)}
-                    onClick={() => handleChooseResult(item)}
-                    className={`group flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-start transition-all cursor-pointer ${
-                      isSelected
-                        ? 'border-indigo-500/40 bg-[#6366F1]/12 shadow-[0_0_24px_-8px_rgba(99,102,241,0.4)]'
-                        : 'border-transparent hover:border-white/10 hover:bg-white/[0.04]'
-                    }`}
-                  >
-                    {/* Leading Icon / Avatar */}
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#090A0F]/80">
-                      {item.authorAvatar ? (
-                        <img
-                          src={item.authorAvatar}
-                          alt={item.authorName || item.title}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : item.type === 'tag' ? (
-                        <Hash className="h-4 w-4 text-[#8B5CF6]" />
-                      ) : (
-                        <User className="h-4 w-4 text-[#6366F1]" />
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span dir="auto" className="truncate text-sm font-semibold text-[#F8FAFC]">
-                          {item.title}
-                        </span>
-                        {item.subtitle && (
-                          <span
-                            dir="auto"
-                            className="shrink-0 font-mono text-[11px] text-[#64748B]"
-                          >
-                            {item.subtitle}
-                          </span>
+            <div className="max-h-[50vh] overflow-y-auto p-2 sm:p-3 space-y-1">
+              {filteredResults.length === 0 ? (
+                <div className="py-8 text-center text-xs text-[#64748B]">
+                  לא נמצאו תוצאות בקטגוריה זו
+                </div>
+              ) : (
+                filteredResults.map((item, idx) => {
+                  const isSelected = idx === activeIndex;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      onClick={() => handleChooseResult(item)}
+                      className={`group flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-start transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-indigo-500/40 bg-[#6366F1]/12 shadow-[0_0_24px_-8px_rgba(99,102,241,0.4)]'
+                          : 'border-transparent hover:border-white/10 hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      {/* Leading Icon / Avatar */}
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#090A0F]/80">
+                        {item.authorAvatar ? (
+                          <img
+                            src={item.authorAvatar}
+                            alt={item.authorName || item.title}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : item.type === 'tag' ? (
+                          <Hash className="h-4 w-4 text-[#8B5CF6]" />
+                        ) : item.type === 'post' ? (
+                          <FileText className="h-4 w-4 text-[#6366F1]" />
+                        ) : (
+                          <User className="h-4 w-4 text-[#6366F1]" />
                         )}
                       </div>
 
-                      <p
-                        dir="auto"
-                        className="line-clamp-2 text-xs sm:text-sm leading-relaxed text-[#94A3B8]"
-                      >
-                        {item.content}
-                      </p>
-
-                      {item.tags && item.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
-                          {item.tags.slice(0, 4).map((t) => (
+                      {/* Content */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span dir="auto" className="truncate text-sm font-semibold text-[#F8FAFC]">
+                            {item.title}
+                          </span>
+                          {item.subtitle && (
                             <span
-                              key={t}
-                              className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] text-indigo-300"
+                              dir="auto"
+                              className="shrink-0 font-mono text-[11px] text-[#64748B]"
                             >
-                              #{t}
+                              {item.subtitle}
                             </span>
-                          ))}
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    <CornerDownLeft
-                      className={`mt-1 h-4 w-4 shrink-0 transition-opacity ${
-                        isSelected ? 'opacity-100 text-indigo-300' : 'opacity-0 group-hover:opacity-60 text-[#64748B]'
-                      }`}
-                    />
-                  </button>
-                );
-              })}
+                        <p
+                          dir="auto"
+                          className="line-clamp-2 text-xs sm:text-sm leading-relaxed text-[#94A3B8]"
+                        >
+                          {item.content}
+                        </p>
+
+                        {item.tags && item.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {item.tags.slice(0, 4).map((t) => (
+                              <span
+                                key={t}
+                                className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] text-indigo-300"
+                              >
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <CornerDownLeft
+                        className={`mt-1 h-4 w-4 shrink-0 transition-opacity ${
+                          isSelected ? 'opacity-100 text-indigo-300' : 'opacity-0 group-hover:opacity-60 text-[#64748B]'
+                        }`}
+                      />
+                    </button>
+                  );
+                })
+              )}
             </div>
 
             {/* Footer Hints */}
@@ -507,7 +749,7 @@ export function CommandSearchModal({
                 <span>↵ בחירה</span>
                 <span>ESC סגירה</span>
               </div>
-              <span className="font-mono text-[#94A3B8]">GET /api/v1/search</span>
+              <span className="font-mono text-[#94A3B8]">GET /api/v1/search/multi</span>
             </div>
           </motion.div>
         </motion.div>

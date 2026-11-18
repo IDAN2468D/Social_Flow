@@ -15,4 +15,7 @@ public class PostRepostedEvent {
     private String authorUsername;
     private String quoteComment;
     private LocalDateTime createdAt;
+
+    @Builder.Default
+    private String eventType = "POST_REPOSTED";
 }

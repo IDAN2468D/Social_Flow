@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Activity,
   BadgeCheck,
+  Bot,
   Database,
   Flame,
   Hash,
@@ -17,6 +18,7 @@ import {
   Wifi,
   X,
 } from 'lucide-react';
+import { isJwtExpired } from '@/lib/auth';
 
 export interface TrendingTagItem {
   tag: string;
@@ -42,7 +44,7 @@ export interface SuggestedUserItem {
 }
 
 export interface SystemTelemetryItem {
-  id: 'kafka' | 'elasticsearch' | 'websocket' | string;
+  id: 'kafka' | 'elasticsearch' | 'websocket' | 'ai' | string;
   label: string;
   detail?: string;
   status: 'online' | 'degraded' | 'offline';
@@ -101,21 +103,88 @@ const DEFAULT_SUGGESTED_USERS: SuggestedUserItem[] = [
   },
 ];
 
-const DEFAULT_TELEMETRY: SystemTelemetryItem[] = [
-  { id: 'kafka', label: 'Kafka Event Bus', detail: 'post-events · 0 lag', status: 'online', latencyMs: 4 },
-  { id: 'elasticsearch', label: 'Elasticsearch 8', detail: 'posts index', status: 'online', latencyMs: 11 },
-  { id: 'websocket', label: 'WebSocket STOMP', detail: 'Live Push', status: 'online', latencyMs: 7 },
+const INITIAL_TELEMETRY: SystemTelemetryItem[] = [
+  { id: 'kafka', label: 'Gateway & Kafka Bus', detail: 'checking health...', status: 'degraded' },
+  { id: 'elasticsearch', label: 'Feed & Elasticsearch 8', detail: 'checking index...', status: 'degraded' },
+  { id: 'ai', label: 'AI & LangGraph', detail: 'checking Gemini RAG...', status: 'degraded' },
 ];
 
-function renderTelemetryIcon(id: string) {
+function renderTelemetryIcon(id: string, status: SystemTelemetryItem['status']) {
+  const colorClass =
+    status === 'online'
+      ? 'text-[#10B981]'
+      : status === 'degraded'
+        ? 'text-amber-400'
+        : 'text-rose-400';
+
   switch (id) {
     case 'kafka':
-      return <Activity className="h-3.5 w-3.5 text-[#10B981]" />;
+      return <Activity className={`h-3.5 w-3.5 ${colorClass}`} />;
     case 'elasticsearch':
-      return <Database className="h-3.5 w-3.5 text-[#10B981]" />;
+      return <Database className={`h-3.5 w-3.5 ${colorClass}`} />;
+    case 'ai':
+      return <Bot className={`h-3.5 w-3.5 ${colorClass}`} />;
     default:
-      return <Wifi className="h-3.5 w-3.5 text-[#10B981]" />;
+      return <Wifi className={`h-3.5 w-3.5 ${colorClass}`} />;
   }
+}
+
+interface ProbeResult {
+  status: 'online' | 'degraded' | 'offline';
+  latencyMs?: number;
+}
+
+async function probeHealthEndpoint(
+  url: string,
+  headers: Record<string, string>
+): Promise<ProbeResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'include',
+      headers,
+      signal: controller.signal,
+    });
+    const end = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const latencyMs = Math.max(1, Math.round(end - start));
+
+    if (res.ok) {
+      return {
+        status: latencyMs > 900 ? 'degraded' : 'online',
+        latencyMs,
+      };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { status: 'degraded', latencyMs };
+    }
+    return { status: 'offline' };
+  } catch {
+    return { status: 'offline' };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function getTelemetryHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (typeof window === 'undefined') return headers;
+  try {
+    const raw = localStorage.getItem('socialflow_user');
+    if (raw) {
+      const parsed = JSON.parse(raw) as { token?: string };
+      if (parsed?.token && !isJwtExpired(parsed.token)) {
+        headers.Authorization = `Bearer ${parsed.token}`;
+      }
+    }
+  } catch {
+    // Ignore storage error
+  }
+  return headers;
 }
 
 export function RightBentoSidebar({
@@ -127,11 +196,97 @@ export function RightBentoSidebar({
   suggestedUsers = DEFAULT_SUGGESTED_USERS,
   followingUsernames,
   onToggleFollow,
-  telemetry = DEFAULT_TELEMETRY,
+  telemetry,
   className = '',
 }: RightBentoSidebarProps) {
   const [localFollowing, setLocalFollowing] = useState<string[]>(['noa']);
+  const [liveTelemetry, setLiveTelemetry] = useState<SystemTelemetryItem[]>(INITIAL_TELEMETRY);
   const activeFollowing = followingUsernames ?? localFollowing;
+
+  useEffect(() => {
+    if (telemetry) return;
+    let cancelled = false;
+
+    const runTelemetryCheck = async () => {
+      const headers = getTelemetryHeaders();
+      const [feedProbe, aiProbe] = await Promise.all([
+        probeHealthEndpoint('/api/v1/feed/trending?size=1', headers),
+        probeHealthEndpoint('/api/v1/ai/health', headers),
+      ]);
+
+      if (cancelled) return;
+
+      const gatewayStatus: SystemTelemetryItem['status'] =
+        feedProbe.status === 'online' && aiProbe.status === 'online'
+          ? 'online'
+          : feedProbe.status === 'offline' && aiProbe.status === 'offline'
+            ? 'offline'
+            : 'degraded';
+
+      const latencies = [feedProbe.latencyMs, aiProbe.latencyMs].filter(
+        (v): v is number => typeof v === 'number'
+      );
+      const gatewayLatency =
+        latencies.length > 0
+          ? Math.round(latencies.reduce((acc, v) => acc + v, 0) / latencies.length)
+          : undefined;
+
+      setLiveTelemetry([
+        {
+          id: 'kafka',
+          label: 'Gateway & Kafka Bus',
+          detail:
+            gatewayStatus === 'online'
+              ? 'post-events · live'
+              : gatewayStatus === 'degraded'
+                ? 'partial connectivity'
+                : 'local fallback mode',
+          status: gatewayStatus,
+          latencyMs: gatewayLatency,
+        },
+        {
+          id: 'elasticsearch',
+          label: 'Feed & Elasticsearch 8',
+          detail:
+            feedProbe.status === 'online'
+              ? 'posts index · live'
+              : feedProbe.status === 'degraded'
+                ? 'high latency / guarded'
+                : 'containers offline',
+          status: feedProbe.status,
+          latencyMs: feedProbe.latencyMs,
+        },
+        {
+          id: 'ai',
+          label: 'AI & LangGraph',
+          detail:
+            aiProbe.status === 'online'
+              ? 'Gemini RAG · active'
+              : aiProbe.status === 'degraded'
+                ? 'high latency'
+                : 'local fallback mode',
+          status: aiProbe.status,
+          latencyMs: aiProbe.latencyMs,
+        },
+      ]);
+    };
+
+    void runTelemetryCheck();
+    const intervalId = setInterval(() => {
+      void runTelemetryCheck();
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [telemetry]);
+
+  const activeTelemetry = telemetry ?? liveTelemetry;
+  const allOnline =
+    activeTelemetry.length > 0 && activeTelemetry.every((t) => t.status === 'online');
+  const allOffline =
+    activeTelemetry.length > 0 && activeTelemetry.every((t) => t.status === 'offline');
 
   const handleFollowClick = (username: string) => {
     if (onToggleFollow) {
@@ -283,20 +438,27 @@ export function RightBentoSidebar({
           <div className="space-y-2.5">
             {suggestedUsers.map((person) => {
               const isFollowing = activeFollowing.includes(person.username);
+              const profileHref = `/profile/${encodeURIComponent(person.username)}`;
               return (
                 <div
                   key={person.id}
                   className="flex items-center justify-between gap-2.5 rounded-xl border border-transparent p-1.5 hover:border-white/10 hover:bg-white/[0.03] transition-colors"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <Link
+                    href={profileHref}
+                    className="group/user flex items-center gap-2.5 min-w-0 flex-1 no-underline"
+                  >
                     <img
                       src={person.avatarUrl}
                       alt={person.name}
-                      className="h-9 w-9 shrink-0 rounded-full border border-white/10 bg-[#090A0F] object-cover"
+                      className="h-9 w-9 shrink-0 rounded-full border border-white/10 bg-[#090A0F] object-cover transition-transform group-hover/user:scale-105"
                     />
                     <div className="min-w-0 text-start">
                       <div className="flex items-center gap-1">
-                        <span dir="auto" className="truncate text-xs font-bold text-[#F8FAFC]">
+                        <span
+                          dir="auto"
+                          className="truncate text-xs font-bold text-[#F8FAFC] group-hover/user:text-indigo-300 transition-colors"
+                        >
                           {person.name}
                         </span>
                         {person.isVerified && (
@@ -308,7 +470,7 @@ export function RightBentoSidebar({
                         {person.bio ? ` · ${person.bio}` : ''}
                       </p>
                     </div>
-                  </div>
+                  </Link>
 
                   <button
                     type="button"
@@ -342,19 +504,37 @@ export function RightBentoSidebar({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#10B981] opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#10B981] shadow-[0_0_8px_#10B981]" />
+                {allOnline && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#10B981] opacity-75" />
+                )}
+                <span
+                  className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
+                    allOnline
+                      ? 'bg-[#10B981] shadow-[0_0_8px_#10B981]'
+                      : allOffline
+                        ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]'
+                        : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)]'
+                  }`}
+                />
               </span>
               <span className="text-xs font-bold text-[#F8FAFC]">Live System Telemetry</span>
             </div>
-            <span className="inline-flex items-center gap-1 rounded-full border border-[#10B981]/30 bg-[#10B981]/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-[#10B981]">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                allOnline
+                  ? 'border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]'
+                  : allOffline
+                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                    : 'border-amber-400/30 bg-amber-500/10 text-amber-300'
+              }`}
+            >
               <Radio className="h-2.5 w-2.5" />
-              <span>ALL LIVE</span>
+              <span>{allOnline ? 'ALL LIVE' : allOffline ? 'OFFLINE' : 'DEGRADED'}</span>
             </span>
           </div>
 
           <div className="space-y-1.5">
-            {telemetry.map((svc) => {
+            {activeTelemetry.map((svc) => {
               const dotColor =
                 svc.status === 'online'
                   ? 'bg-[#10B981]'
@@ -368,7 +548,7 @@ export function RightBentoSidebar({
                   className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#090A0F]/65 px-3 py-2"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    {renderTelemetryIcon(svc.id)}
+                    {renderTelemetryIcon(svc.id, svc.status)}
                     <div className="min-w-0 text-start">
                       <div className="truncate text-[11px] font-semibold text-[#F8FAFC]">
                         {svc.label}
@@ -382,7 +562,11 @@ export function RightBentoSidebar({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0 font-mono text-[10px] text-[#94A3B8]">
-                    {svc.latencyMs !== undefined && <span>{svc.latencyMs}ms</span>}
+                    {svc.latencyMs !== undefined ? (
+                      <span>{svc.latencyMs}ms</span>
+                    ) : (
+                      <span className="text-[#64748B]">--</span>
+                    )}
                     <span className={`h-2 w-2 rounded-full ${dotColor}`} />
                   </div>
                 </div>

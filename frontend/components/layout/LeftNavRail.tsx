@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   BadgeCheck,
   Bell,
+  Bookmark,
   Bot,
   Clapperboard,
   House,
@@ -17,13 +18,17 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useSocialStore } from '@/store/useSocialStore';
+import { clearStoredAuthToken, isJwtExpired } from '@/lib/auth';
+import {
+  useSocialStore,
+  type SocialNotificationItem,
+} from '@/store/useSocialStore';
 
 export interface NavLinkItem {
   href: string;
   label: string;
   sublabel?: string;
-  icon: 'home' | 'stories' | 'community' | 'profile' | 'login';
+  icon: 'home' | 'stories' | 'bookmarks' | 'community' | 'profile' | 'login';
   badge?: string;
 }
 
@@ -46,9 +51,18 @@ export interface LeftNavRailProps {
   className?: string;
 }
 
+type NotifFilter = 'ALL' | 'MENTION' | 'REACTION';
+
+const NOTIF_FILTERS: { id: NotifFilter; label: string }[] = [
+  { id: 'ALL', label: 'הכל' },
+  { id: 'MENTION', label: 'אזכורים' },
+  { id: 'REACTION', label: 'ריאקציות' },
+];
+
 const DEFAULT_NAV_LINKS: NavLinkItem[] = [
   { href: '/', label: 'פיד ראשי', sublabel: 'Home', icon: 'home' },
   { href: '/stories', label: 'סטוריז', sublabel: 'Stories', icon: 'stories', badge: 'LIVE' },
+  { href: '/bookmarks', label: 'סימניות', sublabel: 'Bookmarks', icon: 'bookmarks' },
   { href: '/community', label: 'קהילה', sublabel: 'Community', icon: 'community' },
   { href: '/profile', label: 'פרופיל', sublabel: 'Profile', icon: 'profile' },
   { href: '/login', label: 'התחברות', sublabel: 'Sign in', icon: 'login' },
@@ -71,6 +85,8 @@ function renderNavIcon(icon: NavLinkItem['icon'], isActive: boolean) {
       return <House className={cls} />;
     case 'stories':
       return <Clapperboard className={cls} />;
+    case 'bookmarks':
+      return <Bookmark className={cls} />;
     case 'community':
       return <Users className={cls} />;
     case 'profile':
@@ -80,10 +96,36 @@ function renderNavIcon(icon: NavLinkItem['icon'], isActive: boolean) {
   }
 }
 
+function getStoredAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (typeof window === 'undefined') return headers;
+  try {
+    const raw = localStorage.getItem('socialflow_user');
+    if (!raw) return headers;
+    const parsed = JSON.parse(raw) as {
+      userId?: number | string;
+      username?: string;
+      token?: string;
+    };
+    if (parsed?.token) {
+      if (isJwtExpired(parsed.token)) {
+        clearStoredAuthToken();
+      } else {
+        headers.Authorization = `Bearer ${parsed.token}`;
+      }
+    }
+    if (parsed?.userId != null) headers['X-Auth-UserId'] = String(parsed.userId);
+    if (parsed?.username) headers['X-Auth-Username'] = parsed.username;
+  } catch {
+    // Ignore storage error
+  }
+  return headers;
+}
+
 export function LeftNavRail({
   activePath,
   links = DEFAULT_NAV_LINKS,
-  user = DEFAULT_USER,
+  user,
   unreadNotificationsCount: unreadOverride,
   onNewPost,
   onOpenAgent,
@@ -91,11 +133,14 @@ export function LeftNavRail({
   className = '',
 }: LeftNavRailProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const currentPath = activePath ?? pathname ?? '/';
 
   const {
     notifications,
     unreadNotificationsCount: storeUnreadCount,
+    fetchNotifications,
+    markNotificationRead,
     markAllNotificationsRead,
     openComposer,
     openAgentModal,
@@ -103,6 +148,60 @@ export function LeftNavRail({
 
   const unreadCount = unreadOverride ?? storeUnreadCount;
   const [isNotifExpanded, setIsNotifExpanded] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<NotifFilter>('ALL');
+  const [hydratedUser, setHydratedUser] = useState<NavUserSummary>(DEFAULT_USER);
+
+  useEffect(() => {
+    if (user) return;
+    try {
+      const raw = localStorage.getItem('socialflow_user');
+      if (raw) {
+        const parsed = JSON.parse(raw) as {
+          username?: string;
+          fullName?: string;
+          avatarUrl?: string;
+        };
+        if (parsed?.username) {
+          setHydratedUser({
+            name: parsed.fullName || parsed.username,
+            handle: parsed.username,
+            avatarUrl:
+              parsed.avatarUrl ||
+              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(parsed.username)}`,
+            roleBadge: 'Member',
+            isVerified: true,
+          });
+        }
+      }
+    } catch {
+      // Keep default user
+    }
+  }, [user]);
+
+  const activeUser = user ?? hydratedUser;
+
+  const syncNotifications = useCallback(() => {
+    const headers = getStoredAuthHeaders();
+    void fetchNotifications(headers);
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    syncNotifications();
+    const intervalId = setInterval(() => {
+      syncNotifications();
+    }, 45_000);
+    return () => clearInterval(intervalId);
+  }, [syncNotifications]);
+
+  const filteredNotifications = useMemo(() => {
+    if (notifFilter === 'ALL') return notifications;
+    if (notifFilter === 'MENTION') {
+      return notifications.filter(
+        (n) => n.type === 'MENTION' || (n.type === 'COMMENT' && n.text.includes('@'))
+      );
+    }
+    return notifications.filter((n) => n.type === 'REACTION');
+  }, [notifications, notifFilter]);
 
   const handleNewPost = () => {
     if (onNewPost) {
@@ -124,7 +223,26 @@ export function LeftNavRail({
     if (onNotificationsClick) {
       onNotificationsClick();
     } else {
-      setIsNotifExpanded((prev) => !prev);
+      setIsNotifExpanded((prev) => {
+        const next = !prev;
+        if (next) syncNotifications();
+        return next;
+      });
+    }
+  };
+
+  const handleNotificationItemClick = (n: SocialNotificationItem) => {
+    void markNotificationRead(n.id, getStoredAuthHeaders());
+    setIsNotifExpanded(false);
+
+    if (n.type === 'FOLLOW' && n.actorUsername) {
+      router.push(`/profile/${encodeURIComponent(n.actorUsername)}`);
+    } else if (n.targetPostId) {
+      router.push(`/?post=${encodeURIComponent(n.targetPostId)}`);
+    } else if (n.actorUsername) {
+      router.push(`/profile/${encodeURIComponent(n.actorUsername)}`);
+    } else {
+      router.push('/');
     }
   };
 
@@ -223,7 +341,7 @@ export function LeftNavRail({
                 transition={{ duration: 0.18 }}
                 className="overflow-hidden"
               >
-                <div className="mt-1.5 rounded-xl border border-white/10 bg-[#090A0F]/80 p-2.5 space-y-2">
+                <div className="mt-1.5 rounded-xl border border-white/10 bg-[#090A0F]/85 backdrop-blur-xl p-2.5 space-y-2">
                   <div className="flex items-center justify-between px-1">
                     <span className="text-[11px] font-semibold text-[#94A3B8]">
                       עדכונים אחרונים
@@ -231,7 +349,7 @@ export function LeftNavRail({
                     {unreadCount > 0 && (
                       <button
                         type="button"
-                        onClick={markAllNotificationsRead}
+                        onClick={() => void markAllNotificationsRead(getStoredAuthHeaders())}
                         className="text-[11px] font-medium text-indigo-300 hover:text-indigo-200 cursor-pointer"
                       >
                         סמן כנקרא
@@ -239,19 +357,48 @@ export function LeftNavRail({
                     )}
                   </div>
 
-                  <div className="max-h-44 overflow-y-auto space-y-1.5">
-                    {notifications.length === 0 ? (
-                      <p className="py-2 text-center text-xs text-[#64748B]">
-                        אין התראות חדשות
+                  {/* Notification Filter Tabs */}
+                  <div
+                    role="tablist"
+                    aria-label="סינון התראות"
+                    className="grid grid-cols-3 gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-0.5"
+                  >
+                    {NOTIF_FILTERS.map((tab) => {
+                      const active = notifFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setNotifFilter(tab.id)}
+                          className={`rounded-md py-1 text-[11px] font-semibold transition-all cursor-pointer ${
+                            active
+                              ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/35 shadow-sm'
+                              : 'text-[#94A3B8] hover:text-[#F8FAFC] border border-transparent'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto space-y-1.5">
+                    {filteredNotifications.length === 0 ? (
+                      <p className="py-3 text-center text-xs text-[#64748B]">
+                        אין התראות בקטגוריה זו
                       </p>
                     ) : (
-                      notifications.map((n) => (
-                        <div
+                      filteredNotifications.map((n) => (
+                        <button
                           key={n.id}
-                          className={`flex items-start gap-2 rounded-lg p-2 text-xs transition-colors ${
+                          type="button"
+                          onClick={() => handleNotificationItemClick(n)}
+                          className={`flex w-full items-start gap-2 rounded-lg p-2 text-xs text-start transition-colors cursor-pointer ${
                             n.isRead
-                              ? 'bg-transparent text-[#64748B]'
-                              : 'bg-indigo-500/10 border border-indigo-500/20 text-[#F8FAFC]'
+                              ? 'bg-transparent text-[#64748B] hover:bg-white/[0.04]'
+                              : 'bg-indigo-500/10 border border-indigo-500/20 text-[#F8FAFC] hover:bg-indigo-500/15'
                           }`}
                         >
                           <img
@@ -260,15 +407,20 @@ export function LeftNavRail({
                             className="h-6 w-6 shrink-0 rounded-full border border-white/10 object-cover"
                           />
                           <div className="min-w-0 flex-1 text-start">
-                            <p dir="auto" className="font-semibold truncate">
-                              {n.actorName}
-                            </p>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <p dir="auto" className="font-semibold truncate">
+                                {n.actorName}
+                              </p>
+                              {!n.isRead && (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#6366F1]" />
+                              )}
+                            </div>
                             <p dir="auto" className="text-[11px] leading-snug text-[#94A3B8] line-clamp-2">
                               {n.text}
                             </p>
                             <span className="font-mono text-[10px] text-[#64748B]">{n.time}</span>
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>
@@ -310,8 +462,11 @@ export function LeftNavRail({
       >
         <div className="relative shrink-0">
           <img
-            src={user.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.handle)}`}
-            alt={user.name}
+            src={
+              activeUser.avatarUrl ||
+              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(activeUser.handle)}`
+            }
+            alt={activeUser.name}
             className="h-10 w-10 rounded-full border border-indigo-400/40 bg-[#090A0F] object-cover"
           />
           <span
@@ -323,15 +478,15 @@ export function LeftNavRail({
         <div className="min-w-0 flex-1 text-start">
           <div className="flex items-center gap-1">
             <span dir="auto" className="truncate text-sm font-bold text-[#F8FAFC]">
-              {user.name}
+              {activeUser.name}
             </span>
-            {user.isVerified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#6366F1]" />}
+            {activeUser.isVerified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#6366F1]" />}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="truncate font-mono text-xs text-[#94A3B8]">@{user.handle}</span>
-            {user.roleBadge && (
+            <span className="truncate font-mono text-xs text-[#94A3B8]">@{activeUser.handle}</span>
+            {activeUser.roleBadge && (
               <span className="truncate rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] text-indigo-300">
-                {user.roleBadge}
+                {activeUser.roleBadge}
               </span>
             )}
           </div>

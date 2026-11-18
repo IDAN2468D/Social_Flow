@@ -23,4 +23,7 @@ public class PostCreatedEvent {
     private Long originalPostId;
     private String visibility;
     private LocalDateTime createdAt;
+
+    @Builder.Default
+    private String eventType = "POST_CREATED";
 }

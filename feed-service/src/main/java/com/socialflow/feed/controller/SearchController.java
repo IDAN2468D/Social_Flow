@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping({"/api/v1/search", "/api/search"})
 @RequiredArgsConstructor
@@ -17,9 +19,21 @@ public class SearchController {
     @GetMapping
     public ResponseEntity<Page<PostDocument>> search(
             @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false, defaultValue = "") String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(feedService.searchPosts(q, page, size));
+        String effectiveQuery = !q.isBlank() ? q : query;
+        return ResponseEntity.ok(feedService.searchPosts(effectiveQuery, page, size));
+    }
+
+    @GetMapping("/multi")
+    public ResponseEntity<Map<String, Object>> searchMulti(
+            @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false, defaultValue = "") String query,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        String effectiveQuery = !q.isBlank() ? q : query;
+        return ResponseEntity.ok(feedService.searchMulti(effectiveQuery, page, size));
     }
 
     @GetMapping("/tag/{tag}")

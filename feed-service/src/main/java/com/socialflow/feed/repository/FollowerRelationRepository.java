@@ -10,4 +10,5 @@ import java.util.List;
 public interface FollowerRelationRepository extends JpaRepository<FollowerRelation, Long> {
     List<FollowerRelation> findByFollowerId(Long followerId);
     boolean existsByFollowerIdAndFollowingId(Long followerId, Long followingId);
+    void deleteByFollowerIdAndFollowingId(Long followerId, Long followingId);
 }

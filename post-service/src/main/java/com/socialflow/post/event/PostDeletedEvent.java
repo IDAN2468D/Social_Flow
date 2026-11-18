@@ -9,4 +9,7 @@ import lombok.*;
 public class PostDeletedEvent {
     private Long postId;
     private Long authorId;
+
+    @Builder.Default
+    private String eventType = "POST_DELETED";
 }

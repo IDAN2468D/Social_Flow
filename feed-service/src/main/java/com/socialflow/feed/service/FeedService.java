@@ -146,4 +146,145 @@ public class FeedService {
             return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
     }
+
+    public Map<String, Object> searchMulti(String query, int page, int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = size > 0 ? size : 10;
+        String raw = query != null ? query.trim() : "";
+        String clean = raw.startsWith("#") ? raw.substring(1).trim() : raw;
+        String lowerQuery = clean.toLowerCase();
+
+        try {
+            Map<String, PostDocument> matchedPostsMap = new LinkedHashMap<>();
+            Map<String, PostDocument> allCandidatesMap = new LinkedHashMap<>();
+
+            if (clean.isEmpty()) {
+                Page<PostDocument> allPage = postSearchRepository.findAllByOrderByCreatedAtDesc(
+                        PageRequest.of(0, 150, Sort.by("createdAt").descending()));
+                if (allPage != null && allPage.getContent() != null) {
+                    for (PostDocument doc : allPage.getContent()) {
+                        addCandidate(matchedPostsMap, doc);
+                        addCandidate(allCandidatesMap, doc);
+                    }
+                }
+            } else {
+                Page<PostDocument> contentPage = postSearchRepository.findByContentContainingIgnoreCase(
+                        clean, PageRequest.of(0, 100, Sort.by("createdAt").descending()));
+                if (contentPage != null && contentPage.getContent() != null) {
+                    for (PostDocument doc : contentPage.getContent()) {
+                        addCandidate(matchedPostsMap, doc);
+                        addCandidate(allCandidatesMap, doc);
+                    }
+                }
+
+                Page<PostDocument> recentPage = postSearchRepository.findAllByOrderByCreatedAtDesc(
+                        PageRequest.of(0, 150, Sort.by("createdAt").descending()));
+                if (recentPage != null && recentPage.getContent() != null) {
+                    for (PostDocument doc : recentPage.getContent()) {
+                        addCandidate(allCandidatesMap, doc);
+                        if (matchesPost(doc, lowerQuery)) {
+                            addCandidate(matchedPostsMap, doc);
+                        }
+                    }
+                }
+            }
+
+            List<PostDocument> matchedPosts = new ArrayList<>(matchedPostsMap.values());
+            int start = Math.min(safePage * safeSize, matchedPosts.size());
+            int end = Math.min(start + safeSize, matchedPosts.size());
+            List<PostDocument> paginatedPosts = new ArrayList<>(matchedPosts.subList(start, end));
+
+            Map<String, Map<String, String>> usersByLowerUsername = new LinkedHashMap<>();
+            for (PostDocument doc : allCandidatesMap.values()) {
+                String username = doc.getAuthorUsername();
+                if (username == null || username.isBlank()) {
+                    continue;
+                }
+                boolean matchesUser = lowerQuery.isEmpty()
+                        || username.toLowerCase().contains(lowerQuery)
+                        || (doc.getContent() != null && doc.getContent().toLowerCase().contains(lowerQuery));
+                if (!matchesUser) {
+                    continue;
+                }
+                String key = username.toLowerCase();
+                String avatar = doc.getAuthorAvatar() != null ? doc.getAuthorAvatar() : "";
+                Map<String, String> existing = usersByLowerUsername.get(key);
+                if (existing == null) {
+                    Map<String, String> userMap = new LinkedHashMap<>();
+                    userMap.put("username", username);
+                    userMap.put("avatar", avatar);
+                    usersByLowerUsername.put(key, userMap);
+                } else if (existing.get("avatar").isEmpty() && !avatar.isEmpty()) {
+                    existing.put("avatar", avatar);
+                }
+            }
+            List<Map<String, String>> matchedUsers = usersByLowerUsername.values().stream()
+                    .limit(safeSize)
+                    .collect(Collectors.toList());
+
+            Map<String, Long> tagCounts = new HashMap<>();
+            for (PostDocument doc : allCandidatesMap.values()) {
+                if (doc.getTags() != null) {
+                    for (String tag : doc.getTags()) {
+                        if (tag == null || tag.isBlank()) {
+                            continue;
+                        }
+                        String cleanTag = tag.trim().toLowerCase();
+                        if (lowerQuery.isEmpty() || cleanTag.contains(lowerQuery)) {
+                            tagCounts.put(cleanTag, tagCounts.getOrDefault(cleanTag, 0L) + 1L);
+                        }
+                    }
+                }
+            }
+            List<Map<String, Object>> matchedTags = tagCounts.entrySet().stream()
+                    .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                    .limit(safeSize)
+                    .map(entry -> {
+                        Map<String, Object> tagMap = new LinkedHashMap<>();
+                        tagMap.put("tag", entry.getKey());
+                        tagMap.put("count", entry.getValue());
+                        return tagMap;
+                    })
+                    .collect(Collectors.toList());
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("posts", paginatedPosts);
+            result.put("users", matchedUsers);
+            result.put("tags", matchedTags);
+            return result;
+        } catch (Exception e) {
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("posts", Collections.emptyList());
+            empty.put("users", Collections.emptyList());
+            empty.put("tags", Collections.emptyList());
+            return empty;
+        }
+    }
+
+    private void addCandidate(Map<String, PostDocument> candidateMap, PostDocument doc) {
+        if (doc == null) {
+            return;
+        }
+        String key = doc.getPostId() != null
+                ? "post-" + doc.getPostId()
+                : (doc.getId() != null ? "id-" + doc.getId() : "obj-" + System.identityHashCode(doc));
+        candidateMap.putIfAbsent(key, doc);
+    }
+
+    private boolean matchesPost(PostDocument doc, String lowerQuery) {
+        if (doc.getContent() != null && doc.getContent().toLowerCase().contains(lowerQuery)) {
+            return true;
+        }
+        if (doc.getAuthorUsername() != null && doc.getAuthorUsername().toLowerCase().contains(lowerQuery)) {
+            return true;
+        }
+        if (doc.getTags() != null) {
+            for (String tag : doc.getTags()) {
+                if (tag != null && tag.toLowerCase().contains(lowerQuery)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }
