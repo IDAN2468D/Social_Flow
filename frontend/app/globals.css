@@ -208,6 +208,18 @@
   background: rgba(99, 102, 241, 0.55);
 }
 
+/* Keep Dark Liquid Glass inputs dark even when Chrome/Safari autofills */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #0b0d14 inset !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #f8fafc !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 /* Animations */
 @keyframes floatOrb {
   0% { transform: translate(0, 0) scale(1); }

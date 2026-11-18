@@ -29,7 +29,7 @@ public class User {
     @Column(name = "profile_image_url")
     private String profileImageUrl;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "varchar(50) default 'USER'")
     private String role = "USER";
 
     @Column(name = "created_at", nullable = false, updatable = false)
