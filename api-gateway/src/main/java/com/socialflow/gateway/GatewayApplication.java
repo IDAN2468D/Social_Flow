@@ -38,6 +38,9 @@ public class GatewayApplication {
                 String resolvedHost = null;
                 if (host != null && !host.isBlank()) {
                     resolvedHost = host.trim().replaceFirst("^https?://", "").replaceAll("/+$", "");
+                    if (onRender && !resolvedHost.contains(".")) {
+                        resolvedHost = resolvedHost + ".onrender.com";
+                    }
                 } else if (onRender) {
                     resolvedHost = "socialflow-" + prefix.toLowerCase().replace('_', '-') + ".onrender.com";
                 }
