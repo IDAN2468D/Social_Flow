@@ -1,0 +1,434 @@
+{
+  "info": {
+    "name": "SocialFlow — Render Back End (בעברית)",
+    "description": "קולקציית Postman מסודרת בעברית לעבודה ישירה מול שרתי ה-Microservices ב-Render דרך API Gateway.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://socialflow-api-gateway.onrender.com"
+    },
+    {
+      "key": "jwt_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. אימות ומשתמשים (Auth & Users)",
+      "item": [
+        {
+          "name": "הרשמת משתמש חדש",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.token) { pm.collectionVariables.set('jwt_token', data.token); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"demo_user\",\n  \"email\": \"demo_user@example.com\",\n  \"password\": \"YourPassword123!\",\n  \"fullName\": \"משתמש הדגמה\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          }
+        },
+        {
+          "name": "התחברות ושמירת JWT אוטומטית",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.token) { pm.collectionVariables.set('jwt_token', data.token); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"demo_user\",\n  \"password\": \"YourPassword123!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "צפייה בפרופיל משתמש",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/users/profile/idankzm"
+          }
+        },
+        {
+          "name": "עדכון פרופיל ותמונת S3",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"עידן קזם\",\n  \"bio\": \"Java Microservices Architect\",\n  \"profileImageUrl\": \"https://example.com/avatar.png\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/users/profile"
+          }
+        },
+        {
+          "name": "חיפוש משתמשים",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/users/search?q=idan"
+          }
+        },
+        {
+          "name": "מעקב אחרי משתמש (Follow)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/noa/follow"
+          }
+        },
+        {
+          "name": "ביטול מעקב (Unfollow)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/noa/follow"
+          }
+        },
+        {
+          "name": "שינוי תפקיד משתמש (ADMIN בלבד)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/users/noa/role"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. פוסטים, סקרים, תגובות וסטוריז (Posts & Stories)",
+      "item": [
+        {
+          "name": "יצירת פוסט חדש",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"פוסט בדיקה מתוך Postman ישירות ל-Render! #Java #Kafka #Microservices\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/posts"
+          }
+        },
+        {
+          "name": "שליפת פוסט לפי מזהה",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/posts/1"
+          }
+        },
+        {
+          "name": "סימון או ביטול לייק",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/posts/1/like"
+          }
+        },
+        {
+          "name": "הוספת רגש (Reaction)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reactionType\": \"INSIGHTFUL\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/posts/1/reactions"
+          }
+        },
+        {
+          "name": "הוספת תגובה לפוסט",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"תגובה מתוך Postman ב-Render\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/posts/1/comments"
+          }
+        },
+        {
+          "name": "הצבעה בסקר חי",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/posts/1/poll/vote?optionId=1"
+          }
+        },
+        {
+          "name": "שמירה או הסרה מסימניות",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/posts/1/bookmark"
+          }
+        },
+        {
+          "name": "מחיקת פוסט (בעלים או ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/posts/1"
+          }
+        },
+        {
+          "name": "שליפת סטוריז פעילים",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. פיד וחיפוש Elasticsearch (Feed & Search)",
+      "item": [
+        {
+          "name": "פיד עבורך (For You)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/feed/for-you?page=0&size=20"
+          }
+        },
+        {
+          "name": "פיד נעקבים (Following)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/feed/following?page=0&size=20"
+          }
+        },
+        {
+          "name": "פיד טרנדים (Trending)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/feed/trending?page=0&size=20"
+          }
+        },
+        {
+          "name": "האשטאגים חמים",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/feed/trending-tags"
+          }
+        },
+        {
+          "name": "חיפוש טקסט מלא ב-Elasticsearch",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/search?q=Java&page=0&size=10"
+          }
+        },
+        {
+          "name": "חיפוש משולב (Multi Search)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/search/multi?q=Kafka&page=0&size=10"
+          }
+        },
+        {
+          "name": "חיפוש לפי האשטאג",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/search/tag/Java?page=0&size=10"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. מדיה ואחסון S3 (Media Service)",
+      "item": [
+        {
+          "name": "קבלת Presigned URL להעלאת תמונה",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"avatar.png\",\n  \"contentType\": \"image/png\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/media/upload-url"
+          }
+        },
+        {
+          "name": "מחיקת קובץ מדיה מ-S3 (בעלים או ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/media?key=uploads/1/avatar.png"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. התראות זמן אמת (Notifications)",
+      "item": [
+        {
+          "name": "שליפת כל ההתראות",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications"
+          }
+        },
+        {
+          "name": "מונה התראות שלא נקראו",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/unread-count"
+          }
+        },
+        {
+          "name": "סימון התראה כנקראה",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/1/read"
+          }
+        },
+        {
+          "name": "סימון כל ההתראות כנקראו",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/read-all"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. בדיקת תקינות המיקרו-שירותים ב-Render (Health)",
+      "item": [
+        {
+          "name": "תקינות API Gateway",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-api-gateway.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות User Service",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-user-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Post Service",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-post-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Feed Service",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-feed-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Media Service",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-media-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Notification Service",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-notification-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות AI Service",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-ai-service.onrender.com/health"
+          }
+        }
+      ]
+    }
+  ]
+}

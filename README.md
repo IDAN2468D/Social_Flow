@@ -155,14 +155,26 @@ flowchart TD
 
 ## 🚀 הרצה מקומית (Docker Compose) ו-Kubernetes
 
-### Docker Compose
+### Docker Compose (עם Profiles חסכוניים בזיכרון)
 ```powershell
 git clone https://github.com/IDAN2468D/Social_Flow.git
 cd Social_Flow
-docker compose up -d --build
+
+# 1. כל פרויקט 1 של Java Back End + תשתיות + Kafka UI (ללא שירות AI, עם מגבלות RAM מותאמות)
+docker compose --profile backend up -d --build
+
+# 2. תשתיות בלבד (PostgreSQL, Kafka, Kafka UI, Elasticsearch, MinIO — להרצת Java מתוך IntelliJ)
+docker compose --profile infra up -d
+
+# 3. רק Kafka + Kafka UI (מינימום משאבים)
+docker compose --profile kafka up -d
+
+# 4. כל המערכת כולל AI Service
+docker compose --profile all up -d --build
+
 docker compose ps
 ```
-או באמצעות הסקריפטים [`start_docker.ps1`](start_docker.ps1) / [`stop_docker.ps1`](stop_docker.ps1).
+או באמצעות הסקריפטים [`start_docker.ps1`](start_docker.ps1) (למשל `.\start_docker.ps1 -Profile backend` / `infra` / `kafka` / `all`) ו-[`stop_docker.ps1`](stop_docker.ps1).
 
 ### Kubernetes (`k8s/`)
 ```bash
