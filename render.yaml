@@ -13,6 +13,10 @@ databases:
 envVarGroups:
   - name: socialflow-shared-env
     envVars:
+      # Cap HikariCP pool per service for Render Free PostgreSQL connection limits
+      - key: DB_POOL_SIZE
+        value: "3"
+
       # Auto-generated cryptographically secure JWT secret shared across all services
       - key: JWT_SECRET
         generateValue: true
@@ -66,6 +70,11 @@ services:
           type: web
           name: socialflow-api-gateway
           property: hostport
+      - key: API_GATEWAY_HOST
+        fromService:
+          type: web
+          name: socialflow-api-gateway
+          property: host
 
   # 2. Spring Cloud API Gateway
   - type: web
