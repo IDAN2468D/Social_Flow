@@ -19,7 +19,12 @@ function getApiGatewayCandidates(): string[] {
     candidates.push(normalizeBaseUrl(process.env.API_GATEWAY_HOSTPORT, 'http'));
   }
   if (process.env.API_GATEWAY_HOST) {
-    candidates.push(normalizeBaseUrl(process.env.API_GATEWAY_HOST, 'https'));
+    const rawHost = process.env.API_GATEWAY_HOST.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const fullHost =
+      process.env.RENDER === 'true' && rawHost && !rawHost.includes('.')
+        ? `${rawHost}.onrender.com`
+        : rawHost;
+    candidates.push(normalizeBaseUrl(fullHost, 'https'));
   }
   if (process.env.RENDER === 'true') {
     candidates.push('https://socialflow-api-gateway.onrender.com');

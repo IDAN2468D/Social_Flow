@@ -72,11 +72,16 @@ async def ask_feed(req: AskFeedRequest):
     # If no posts provided directly in the request, try fetching recent feed from feed-service or post-service
     if not posts_context:
         try:
-            feed_uri = os.getenv("FEED_SERVICE_URI") or (
-                f"http://{os.getenv('FEED_SERVICE_HOSTPORT')}"
-                if os.getenv("FEED_SERVICE_HOSTPORT")
-                else "http://feed-service:8083"
-            )
+            on_render = os.getenv("RENDER", "").lower() == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
+            feed_uri = os.getenv("FEED_SERVICE_URI")
+            if not feed_uri:
+                hostport = os.getenv("FEED_SERVICE_HOSTPORT", "")
+                if on_render and (not hostport or "." not in hostport.split(":")[0]):
+                    feed_uri = "https://socialflow-feed-service.onrender.com"
+                elif hostport:
+                    feed_uri = f"http://{hostport}"
+                else:
+                    feed_uri = "http://feed-service:8083"
             async with httpx.AsyncClient(timeout=4.0) as client:
                 res = await client.get(f"{feed_uri}/api/v1/feed/for-you?userId=1&page=0&size=20")
                 if res.status_code == 200:
