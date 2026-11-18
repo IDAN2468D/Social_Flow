@@ -22,10 +22,6 @@ const nextConfig = {
         : `http://${rawGateway}`;
     return [
       {
-        source: '/api/:path*',
-        destination: `${apiGateway}/api/:path*`,
-      },
-      {
         source: '/actuator/:path*',
         destination: `${apiGateway}/actuator/:path*`,
       },
