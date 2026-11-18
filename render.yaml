@@ -92,31 +92,61 @@ services:
           type: web
           name: socialflow-user-service
           property: hostport
+      - key: USER_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-user-service
+          property: host
       - key: POST_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-post-service
           property: hostport
+      - key: POST_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-post-service
+          property: host
       - key: FEED_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-feed-service
           property: hostport
+      - key: FEED_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-feed-service
+          property: host
       - key: MEDIA_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-media-service
           property: hostport
+      - key: MEDIA_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-media-service
+          property: host
       - key: NOTIFICATION_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-notification-service
           property: hostport
+      - key: NOTIFICATION_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-notification-service
+          property: host
       - key: AI_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-ai-service
           property: hostport
+      - key: AI_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-ai-service
+          property: host
 
   # 3. User & Auth Service (Spring Boot 3)
   - type: web
