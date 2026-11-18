@@ -38,11 +38,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String gatewayUserId = request.getHeader("X-Auth-UserId");
 
         if (gatewayUsername != null && !gatewayUsername.isEmpty() && gatewayUserId != null && !gatewayUserId.isEmpty()) {
-            UserPrincipal principal = new UserPrincipal(Long.parseLong(gatewayUserId), gatewayUsername);
+            String role = normalizeRole(request.getHeader("X-User-Role"));
+            UserPrincipal principal = new UserPrincipal(Long.parseLong(gatewayUserId), gatewayUsername, role);
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     principal,
                     null,
-                    List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                    List.of(new SimpleGrantedAuthority("ROLE_" + role))
             );
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -70,11 +71,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    UserPrincipal principal = new UserPrincipal(userId, username);
+                    String role = normalizeRole(claims.get("role") != null ? String.valueOf(claims.get("role")) : null);
+                    UserPrincipal principal = new UserPrincipal(userId, username, role);
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             principal,
                             null,
-                            List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                            List.of(new SimpleGrantedAuthority("ROLE_" + role))
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -84,5 +86,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String normalizeRole(String rawRole) {
+        if (rawRole == null || rawRole.isBlank()) {
+            return "USER";
+        }
+        String trimmed = rawRole.trim().toUpperCase();
+        return trimmed.startsWith("ROLE_") ? trimmed.substring(5) : trimmed;
     }
 }

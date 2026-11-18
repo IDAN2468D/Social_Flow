@@ -136,6 +136,24 @@ public class UserService {
         return followerRepository.findFollowingIdsByFollowerId(userId);
     }
 
+    @Transactional
+    public UserProfileDto updateUserRole(String targetIdentifier, String newRole) {
+        if (newRole == null || newRole.isBlank()) {
+            throw new IllegalArgumentException("תפקיד לא תקין");
+        }
+        String normalized = newRole.trim().toUpperCase();
+        if (normalized.startsWith("ROLE_")) {
+            normalized = normalized.substring(5);
+        }
+        if (!"USER".equals(normalized) && !"ADMIN".equals(normalized)) {
+            throw new IllegalArgumentException("תפקיד חוקי הוא USER או ADMIN בלבד");
+        }
+        User targetUser = resolveTargetUser(targetIdentifier);
+        targetUser.setRole(normalized);
+        User saved = userRepository.save(targetUser);
+        return buildProfileDto(saved, null);
+    }
+
     private User findActingUser(String currentUsername) {
         if (currentUsername == null || currentUsername.isBlank()) {
             throw new IllegalArgumentException("המשתמש המחובר לא נמצא");

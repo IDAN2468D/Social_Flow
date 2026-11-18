@@ -6,7 +6,9 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -151,6 +153,21 @@ public class MediaService {
                 presignedPutObjectRequest.url().toString(),
                 publicEndpoint + "/" + bucketName + "/" + fileKey
         );
+    }
+
+    public void deleteMedia(Long userId, boolean isAdmin, String fileKey) {
+        if (fileKey == null || fileKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "מפתח הקובץ למחיקה חסר");
+        }
+        String normalizedKey = fileKey.trim().replaceAll("^/+", "");
+        String expectedPrefix = "uploads/" + userId + "/";
+        if (!isAdmin && !normalizedKey.startsWith(expectedPrefix)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "אין הרשאה למחוק קובץ של משתמש אחר");
+        }
+        s3Client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(bucketName)
+                .key(normalizedKey)
+                .build());
     }
 
     private String getFileExtension(String filename) {

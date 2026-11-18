@@ -5,6 +5,7 @@ import com.socialflow.post.controller.PostController;
 import com.socialflow.post.controller.StoryController;
 import com.socialflow.post.dto.*;
 import com.socialflow.post.event.PostCreatedEvent;
+import com.socialflow.post.event.PostDeletedEvent;
 import com.socialflow.post.event.PostLikedEvent;
 import com.socialflow.post.event.PostPinnedEvent;
 import com.socialflow.post.event.PostRepostedEvent;
@@ -364,5 +365,23 @@ class PostServiceTest {
         assertThat(activeList.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(activeList.getBody()).hasSize(1);
         assertThat(activeList.getBody().get(0).getCaption()).isEqualTo("New release!");
+    }
+
+    @Test
+    @DisplayName("deletePost allows owner or ADMIN and blocks non-owner USER")
+    void deletePost_OwnershipAndAdmin() {
+        Post post = Post.builder().id(77L).authorId(100L).authorUsername("idan").content("Hello").build();
+        when(postRepository.findById(77L)).thenReturn(Optional.of(post));
+
+        UserPrincipal nonOwner = new UserPrincipal(200L, "noa", "USER");
+        assertThatThrownBy(() -> postService.deletePost(77L, nonOwner))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unauthorized");
+
+        UserPrincipal admin = new UserPrincipal(999L, "admin", "ADMIN");
+        postService.deletePost(77L, admin);
+
+        verify(postRepository, times(1)).delete(post);
+        verify(postKafkaProducer, times(1)).emitPostDeleted(any(PostDeletedEvent.class));
     }
 }
