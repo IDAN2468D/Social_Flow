@@ -8,6 +8,7 @@ import {
   Bot,
   Database,
   Flame,
+  HardDrive,
   Hash,
   Radio,
   Search,
@@ -44,7 +45,7 @@ export interface SuggestedUserItem {
 }
 
 export interface SystemTelemetryItem {
-  id: 'kafka' | 'elasticsearch' | 'websocket' | 'ai' | string;
+  id: 'kafka' | 'elasticsearch' | 'websocket' | 'ai' | 'media' | string;
   label: string;
   detail?: string;
   status: 'online' | 'degraded' | 'offline';
@@ -107,6 +108,7 @@ const INITIAL_TELEMETRY: SystemTelemetryItem[] = [
   { id: 'kafka', label: 'Gateway & Kafka Bus', detail: 'checking health...', status: 'degraded' },
   { id: 'elasticsearch', label: 'Feed & Elasticsearch 8', detail: 'checking index...', status: 'degraded' },
   { id: 'ai', label: 'AI & LangGraph', detail: 'checking Gemini RAG...', status: 'degraded' },
+  { id: 'media', label: 'MinIO S3 & Media', detail: 'checking bucket...', status: 'degraded' },
 ];
 
 function renderTelemetryIcon(id: string, status: SystemTelemetryItem['status']) {
@@ -124,6 +126,8 @@ function renderTelemetryIcon(id: string, status: SystemTelemetryItem['status']) 
       return <Database className={`h-3.5 w-3.5 ${colorClass}`} />;
     case 'ai':
       return <Bot className={`h-3.5 w-3.5 ${colorClass}`} />;
+    case 'media':
+      return <HardDrive className={`h-3.5 w-3.5 ${colorClass}`} />;
     default:
       return <Wifi className={`h-3.5 w-3.5 ${colorClass}`} />;
   }
@@ -267,6 +271,18 @@ export function RightBentoSidebar({
                 : 'local fallback mode',
           status: aiProbe.status,
           latencyMs: aiProbe.latencyMs,
+        },
+        {
+          id: 'media',
+          label: 'MinIO S3 & Media',
+          detail:
+            gatewayStatus === 'online'
+              ? 's3 bucket · live'
+              : gatewayStatus === 'degraded'
+                ? 'partial connectivity'
+                : 'local fallback mode',
+          status: gatewayStatus,
+          latencyMs: gatewayLatency,
         },
       ]);
     };

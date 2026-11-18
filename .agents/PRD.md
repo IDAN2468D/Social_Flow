@@ -1,61 +1,67 @@
-# SocialFlow — Product Requirements Document (PRD)
+# SocialFlow — Product Requirements Document (PRD): Dark Liquid Glass 4.0 Pro
 
-**Version:** 2.0 (2026 UI/UX Redesign)  
+**Version:** 4.0 Pro (2026 UI/UX & Back End 13 Microservices Alignment)  
 **Owner:** Team Lead Idan Kazam (`IDAN2468D`)  
-**Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Zustand · Spring Boot 3 Microservices · API Gateway (`:8088`) · Apache Kafka · Elasticsearch 8 · MinIO S3 · WebSocket STOMP · FastAPI AI/LangGraph (`:8086`)
+**Stack:** Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Zustand · Spring Boot 3 Microservices (`Back End 13 - Java`) · Spring Cloud API Gateway (`:8088`) · Apache Kafka · Elasticsearch 8 · MinIO S3 · WebSocket STOMP · FastAPI AI/LangGraph & Gemini (`:8086`) · PostgreSQL
 
 ---
 
-## 1. Product Vision
-Transform **SocialFlow** into a flagship 2026 AI-era social network combining:
-- The **conversational clarity and single-focus readability** of **Threads Web** (clean navigation rail, connected thread tree lines, interactive polls, spoiler/tag affordances, quick-access insights).
-- The **multi-feed discovery architecture** of **Bluesky** (pinned feed switcher tabs: `For You`, `Following`, `Trending`, `Media`, starter/community discovery cards, instant keyword & tag filtering).
-- The **visual polish** of **Dribbble Dark Liquid Glass & Bento Grids** (Obsidian `#090A0F` canvas, translucent `rgba(18, 21, 33, 0.72)` Bento tiles, `1px` `border-white/10` hairline borders, ambient radial glows, and 150–250ms spring micro-interactions).
+## 1. Executive Vision
+Transform **SocialFlow** into a flagship 2026 AI-era distributed social network built atop an event-driven **Java Microservices** architecture (`Spring Boot 3`, `API Gateway :8088`, `Apache Kafka`, `Elasticsearch 8`, `MinIO S3`, `PostgreSQL`, and `FastAPI LangGraph + Gemini`). The **Dark Liquid Glass 4.0 Pro** UI unifies:
+- **Threads Web conversational clarity:** Sticky navigation rail, connected thread reply lines, interactive polls, quote reposts, and single-focus stream readability.
+- **Bluesky custom feed discovery:** Pinned feed switcher tabs (`For You`, `Following`, `Trending`, `Media`), instant hashtag filtering, and community discovery.
+- **Dribbble Dark Liquid Glass & Asymmetric Bento Grids:** `Obsidian Void` (`#090A0F`) canvas, translucent `rgba(18, 21, 33, 0.72)` Bento tiles with `backdrop-blur-2xl`, `1px solid rgba(255, 255, 255, 0.08)` specular hairline borders, ambient radial aurora glows, and 120Hz GPU-accelerated spring micro-interactions.
 
 ---
 
-## 2. Target User Experience & Core Requirements
+## 2. Core Goals & Success Metrics (KPIs)
 
-### 2.1 3-Zone Asymmetric Shell
-- **Left Sticky Glass Navigation Rail (`260px`):** Primary navigation links (`Home / Feed`, `Explore`, `Stories`, `Notifications` with live WebSocket unread badge, `Profile`, `AI Agent`), user mini-profile pill, and primary gradient **"New Post"** CTA button.
-- **Center Single-Column Stream (`minmax(0, 640px)`):** Anchored by a sticky `backdrop-blur-xl` **Pinned Feed Switcher** (`For You`, `Following`, `Trending`, `Media`), inline expandable Quick Composer, Stories bar, and high-readability post stream.
-- **Right Bento Discovery & Real-Time Activity Column (`340px`):** Modular Bento tiles featuring:
-  1. **Elasticsearch Instant Search Trigger (`Ctrl+K` / `Cmd+K`)** & RAG Feed Q&A entry point.
+| Goal ID | Domain | Target Requirement | Architecture / Reference |
+| :--- | :--- | :--- | :--- |
+| **G-01** | Visual Language | Full **Dark Liquid Glass 4.0 Pro** with `Obsidian Void` (`#090A0F`), `backdrop-blur-2xl`, and specular hairline borders (`1px solid rgba(255,255,255,0.08)`) | Dribbble Glassmorphism & Wavespace 2026 UI |
+| **G-02** | Spatial Layout | Responsive **3-Column Asymmetric Bento Grid** (`260px \| minmax(0,640px) \| 340px`) with live `RTL` / `LTR` directionality toggle | Dribbble Bento Data & Pixso Glass & Bento |
+| **G-03** | Multi-Feed Discovery | Instant (`< 100ms` Optimistic UI) switching across `For You`, `Following`, `Trending`, and `Media` tabs | `feed-service` + `Kafka` + `Elasticsearch 8` |
+| **G-04** | Real-Time Search & AI | Floating `Ctrl+K` / `Cmd+K` command palette with debounced search (`< 150ms`), term highlighting, and AI RAG Feed Q&A | `feed-service` (`Elasticsearch 8`) + `ai-service` (`LangGraph` & `Gemini`) |
+| **G-05** | Smart Media Upload | Drag-and-drop composer with progress bar and direct browser-to-S3 upload via `Presigned URLs` | `media-service` (`MinIO S3`) via `API Gateway :8088` |
+| **G-06** | Security & Roles | `JWT + HttpOnly Cookies` + `Bearer` token auth with user roles (`USER` / `ADMIN`), S3 profile images, and WCAG AA contrast (`>= 4.5:1`) | `user-service` (`JWT` + `Roles` + `S3 Profile Image`) |
+
+---
+
+## 3. Target User Experience & Functional Requirements
+
+### 3.1 3-Column Asymmetric Bento Shell (`AppShell`, `LeftNavRail`, `RightBentoSidebar`)
+- **Left Sticky Glass Navigation Rail (`260px`):** Brand logo with ambient glow, primary links (`Feed`, `Explore / Community`, `Stories`, `Notifications` with live WebSocket STOMP unread badge, `Bookmarks`, `Profile`, `AI Agent`), live **`RTL / LTR` directionality toggle pill**, user mini-profile pill (showing role & JWT status), and gradient **New Post** CTA.
+- **Center Single-Column Stream (`minmax(0, 640px)`):** Sticky `backdrop-blur-xl` **Pinned Feed Switcher** (`For You`, `Following`, `Trending`, `Media`), inline expandable `PostComposerCard`, `StoriesBar`, and high-readability post stream with shimmer glass skeletons.
+- **Right Bento Discovery & System Telemetry Column (`340px`):**
+  1. **Command Search Trigger (`Ctrl+K` / `Cmd+K`)** & AI RAG Feed Q&A entry point.
   2. **Trending Hashtags & Communities** with live tag filtering.
-  3. **Who to Follow + Live System Telemetry** badge (API Gateway / Kafka / WebSocket STOMP health pulse).
-- **Responsive Collapse (Mobile & Tablet):** Cleanly collapses into a sticky top glass bar + floating bottom glass dock (`backdrop-blur-2xl`).
+  3. **Who to Follow** (optimistic follow/unfollow by username or ID against `user-service`) + **Live System Telemetry Bento** monitoring `Gateway & Kafka Bus`, `Feed & Elasticsearch 8`, `MinIO S3 & Media`, and `AI & LangGraph`.
+- **Responsive Breakpoints:**
+  - **Desktop (`>= 1280px`):** Full 3-column asymmetric Bento grid.
+  - **Tablet (`768px–1279px`):** Compact rail + main stream with collapsible Bento widgets.
+  - **Mobile (`< 768px`):** Sticky top glass header + floating bottom glass dock (`backdrop-blur-2xl`).
 
-### 2.2 Rich Media & Poll Composer
-- Drag-and-drop **MinIO S3 presigned image/video upload** with real-time upload progress bar and live multi-image preview grid.
-- **Interactive Poll Builder** toggle (question + 2–4 options, duration selector).
-- **Code / Markdown Snippet** support and `#hashtag` / `@mention` autocomplete.
-- **Character Ring Indicator** and AI Post Enhancement / LangGraph Autonomous Draft trigger.
+### 3.2 Rich Media & Poll Composer (`PostComposerCard`)
+- **Bilingual Auto-BiDi:** Automatic `dir="auto"` per-paragraph text direction (`RTL` Hebrew / `LTR` English & code), SVG radial character progress ring, `#hashtag` / `@mention` chips, and Markdown/code snippet support.
+- **MinIO S3 Presigned Upload:** Drag-and-drop image/video requests a presigned URL from `media-service` (`/api/media/presign` or `/api/v1/media/upload-url`), uploads directly to `MinIO S3` via HTTP `PUT` with an animated progress bar, and attaches `mediaUrl` to `post-service`.
+- **Interactive Poll Builder & AI Draft:** Toggleable poll options (2–4 choices + duration) and AI post enhancement via `ai-service` (`LangGraph` & `Gemini`).
 
-### 2.3 Interactive Post Cards
-- Author header with verification badge, avatar ring, relative timestamp, and hover profile preview card.
-- **Connected Thread Reply Lines** visualizing conversational context and nested comments.
-- **Animated Reaction Bar** with spring micro-interactions (`Like`, `Repost`, `Bookmark`, `Share`, `Comment` counter).
-- **Pinterest / Bento Multi-Image Grid** and image lightbox viewer, plus **Interactive Poll Bars** with live percentage fills.
-- **Real-Time View & Engagement Badges** rendered in `JetBrains Mono`.
+### 3.3 Interactive Post Cards & Threads (`PostCard`)
+- **Thread Connectors:** Vertical dynamic connector lines linking parent posts and nested replies.
+- **Bento Media & Lightbox:** Rounded (`rounded-2xl`) multi-image Bento grid with full-screen glass lightbox.
+- **6-Reaction Micro-Bar & Quote Repost:** Spring-animated reactions, optimistic `Like`, `Repost` / `Quote Repost`, `Bookmark` (persisted & viewable at `/bookmarks`), `Share`, and `Comment` drawers, plus live interactive poll voting bars.
 
-### 2.4 Elasticsearch Instant Command Palette (`Ctrl+K` / `Cmd+K`)
-- Floating Obsidian Liquid Glass command modal (`backdrop-blur-2xl`).
-- Instant debounced search across **posts**, **users**, and **hashtags** powered by Elasticsearch (`feed-service` via `/api/v1/search`).
-- Keyboard navigation (`↑`, `↓`, `Enter`, `Esc`) and quick action to invoke the **AI RAG Feed Q&A** (`ai-service`).
+### 3.4 Elasticsearch Command Palette (`CommandSearchModal`)
+- Opens globally via `Ctrl+K` / `Cmd+K` or the sidebar search trigger.
+- Debounced (`200ms`) query against `/api/v1/search` / `/api/search` (`feed-service` / `Elasticsearch 8`), grouping **Posts**, **People**, and **Hashtags** with highlighted matching terms, full keyboard navigation (`↑`, `↓`, `Enter`, `Esc`), and one-click handoff to **AI RAG Feed Q&A** (`ai-service`).
 
-### 2.5 Bento Profile Page
-- Hero cover banner with overlapping glass avatar card and follow/edit profile actions.
-- **4-Tile Bento Stats Grid:** `Posts`, `Followers`, `Following`, and `Engagement Impact`.
-- **Tabbed Content Views:** `Posts`, `Media` (Masonry/Bento gallery), `Likes`, and `Replies`.
-
-### 2.6 Bilingual & RTL/LTR Readiness
-- Full support for **Hebrew (RTL)** and **English (LTR)** side by side.
-- Automatic per-paragraph text direction (`dir="auto"`) across post content, comments, search queries, and composer inputs.
-- Unified typography pairing `Inter`, `Heebo`, and `Plus Jakarta Sans` for seamless Hebrew + Latin glyph harmony.
+### 3.5 Bento Profile, Auth & Roles (`user-service`)
+- **Authentication & Roles:** Split-screen Dark Liquid Glass `/login` and `/register` views backed by `user-service` (`JWT` with `role` claim, `HttpOnly Cookies`, and `Bearer` header).
+- **Bento Profile (`/profile`, `/profile/[username]`):** Hero banner, overlapping glass avatar card (supporting S3 profile image upload via `media-service`), 4-tile Bento stats (`Posts`, `Followers`, `Following`, `Engagement Impact`), edit profile modal (`fullName`, `bio`, `profileImageUrl`), and tabbed content (`Posts`, `Media`, `Likes`, `Replies`).
 
 ---
 
-## 3. Non-Negotiable Constraints
-1. **Preserve Backend Contracts:** All existing API Gateway calls (`/api/auth/**`, `/api/users/**`, `/api/posts/**`, `/api/feed/**`, `/api/media/**`, `/api/v1/**`, and STOMP/WebSocket notifications) must remain 100% functional with graceful offline fallbacks.
-2. **WCAG Contrast Compliance:** All text over Obsidian glass surfaces must maintain high readability (`#F8FAFC` primary, `#94A3B8` secondary).
-3. **Zero Build Regressions:** `npm run build` (Next.js 15 + TypeScript + Tailwind CSS v4) must compile cleanly without warnings or CSS errors.
+## 4. Non-Functional & Architectural Constraints
+1. **Back End 13 - Java Microservices Integrity:** Preserve all `Spring Boot 3` microservices (`user-service`, `post-service`, `feed-service`, `media-service`, `notification-service`, `api-gateway :8088`) and `ai-service` (`:8086`) contracts, including Render PostgreSQL fast-startup (`temp.use_jdbc_metadata_defaults: false`).
+2. **Resilient Graceful Fallback:** `api-client` / Zustand store provides non-blocking Glass Toast notifications and rich Demo Mode fallback when Docker/cloud containers are offline.
+3. **Accessibility & Performance:** WCAG AA contrast (`>= 4.5:1`), `aria-label` on icon controls, `prefers-reduced-motion` respect, GPU-only transforms (`translate3d`, `opacity`), and zero TypeScript/Next.js build regressions.

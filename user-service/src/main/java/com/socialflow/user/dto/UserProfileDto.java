@@ -8,6 +8,7 @@ public class UserProfileDto {
     private String fullName;
     private String bio;
     private String profileImageUrl;
+    private String role;
     private long followersCount;
     private long followingCount;
     private boolean isFollowedByCurrentUser;
@@ -31,6 +32,9 @@ public class UserProfileDto {
 
     public String getProfileImageUrl() { return profileImageUrl; }
     public void setProfileImageUrl(String profileImageUrl) { this.profileImageUrl = profileImageUrl; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
     public long getFollowersCount() { return followersCount; }
     public void setFollowersCount(long followersCount) { this.followersCount = followersCount; }

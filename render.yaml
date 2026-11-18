@@ -15,7 +15,7 @@ envVarGroups:
     envVars:
       # Cap HikariCP pool per service for Render Free PostgreSQL connection limits
       - key: DB_POOL_SIZE
-        value: "3"
+        value: "2"
 
       # Auto-generated cryptographically secure JWT secret shared across all services
       - key: JWT_SECRET

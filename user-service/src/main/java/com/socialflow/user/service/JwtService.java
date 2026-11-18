@@ -23,9 +23,14 @@ public class JwtService {
     private long jwtExpiration;
 
     public String generateToken(Long userId, String username, String email) {
+        return generateToken(userId, username, email, "USER");
+    }
+
+    public String generateToken(Long userId, String username, String email, String role) {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userId", userId);
         extraClaims.put("email", email);
+        extraClaims.put("role", role != null ? role : "USER");
 
         return Jwts.builder()
                 .claims(extraClaims)

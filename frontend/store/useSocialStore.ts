@@ -33,6 +33,9 @@ interface RawNotificationDto {
 }
 
 interface SocialStoreState {
+  direction: "rtl" | "ltr";
+  toggleDirection: () => void;
+
   currentTab: "TRENDING" | "FOLLOWING" | "GROUP";
   setTab: (tab: "TRENDING" | "FOLLOWING" | "GROUP") => void;
 
@@ -219,6 +222,15 @@ function mapRawNotification(
 }
 
 export const useSocialStore = create<SocialStoreState>((set, get) => ({
+  direction: "rtl",
+  toggleDirection: () => {
+    const nextDir = get().direction === "rtl" ? "ltr" : "rtl";
+    if (typeof document !== "undefined") {
+      document.documentElement.dir = nextDir;
+    }
+    set({ direction: nextDir });
+  },
+
   currentTab: "TRENDING",
   setTab: (tab) => set({ currentTab: tab }),
 

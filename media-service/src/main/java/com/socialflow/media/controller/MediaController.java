@@ -18,7 +18,7 @@ import javax.crypto.SecretKey;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/media")
+@RequestMapping({"/api/v1/media", "/api/media"})
 public class MediaController {
 
     private static final Logger log = LoggerFactory.getLogger(MediaController.class);
@@ -36,7 +36,7 @@ public class MediaController {
         return ResponseEntity.ok(Map.of("status", "UP", "service", "media-service"));
     }
 
-    @PostMapping("/upload-url")
+    @PostMapping({"/upload-url", "/presign"})
     public ResponseEntity<UploadUrlResponse> getUploadUrl(
             @RequestHeader(value = "X-User-Id", required = false) Long headerUserId,
             @RequestHeader(value = "X-Auth-UserId", required = false) String gatewayUserId,

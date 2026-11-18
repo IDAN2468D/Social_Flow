@@ -305,6 +305,25 @@ function filterFallback(query: string): SearchResultItem[] {
   return matched.length > 0 ? matched : FALLBACK_RESULTS;
 }
 
+function highlightMatch(text: string, query: string): React.ReactNode {
+  const trimmed = query.trim().replace(/^#/, '');
+  if (!trimmed || !text) return text;
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escaped})`, 'gi');
+  const parts = text.split(regex);
+  if (parts.length === 1) return text;
+
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <mark key={i} className="rounded bg-[#6366F1]/30 px-0.5 text-[#F8FAFC]">
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+}
+
 function getSearchAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (typeof window === 'undefined') return headers;
@@ -698,7 +717,7 @@ export function CommandSearchModal({
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <span dir="auto" className="truncate text-sm font-semibold text-[#F8FAFC]">
-                            {item.title}
+                            {highlightMatch(item.title, query)}
                           </span>
                           {item.subtitle && (
                             <span
@@ -714,7 +733,7 @@ export function CommandSearchModal({
                           dir="auto"
                           className="line-clamp-2 text-xs sm:text-sm leading-relaxed text-[#94A3B8]"
                         >
-                          {item.content}
+                          {highlightMatch(item.content, query)}
                         </p>
 
                         {item.tags && item.tags.length > 0 && (

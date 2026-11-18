@@ -198,6 +198,7 @@ public class UserService {
         dto.setFullName(targetUser.getFullName());
         dto.setBio(targetUser.getBio());
         dto.setProfileImageUrl(targetUser.getProfileImageUrl());
+        dto.setRole(targetUser.getRole());
         dto.setFollowersCount(followerRepository.countByFollowingId(targetUser.getId()));
         dto.setFollowingCount(followerRepository.countByFollowerId(targetUser.getId()));
 
