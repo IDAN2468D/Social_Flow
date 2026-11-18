@@ -31,10 +31,6 @@ envVarGroups:
       - key: KAFKA_AUTO_STARTUP
         value: "true"
 
-      # External Elasticsearch 8 (e.g. Elastic Cloud)
-      - key: SPRING_ELASTICSEARCH_URIS
-        sync: false
-
       # External S3 / Cloudflare R2 / MinIO Object Storage for Media Service
       - key: AWS_S3_ENDPOINT
         sync: false
@@ -228,6 +224,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_ELASTICSEARCH_HOSTPORT
+        fromService:
+          type: pserv
+          name: socialflow-elasticsearch
+          property: hostport
       - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
         fromService:
           type: pserv
@@ -350,3 +351,15 @@ services:
           type: pserv
           name: socialflow-kafka
           property: hostport
+
+  # 11. Elasticsearch 8 (Single-Node Private Service — requires paid plan on Render)
+  - type: pserv
+    name: socialflow-elasticsearch
+    runtime: docker
+    dockerfilePath: ./elasticsearch/Dockerfile
+    dockerContext: ./elasticsearch
+    plan: standard
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "9200"
