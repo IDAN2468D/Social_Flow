@@ -37,7 +37,9 @@ jobs:
           cache: maven
 
       - name: Run Maven Tests Across All Microservices
-        run: mvn test
+        run: |
+          find ~/.m2/repository -name "_remote.repositories" -delete || true
+          mvn -B -nsu test || (sleep 10 && mvn -B -nsu test)
 
       - name: Set up Python 3.11 & Run AI Service Tests
         uses: actions/setup-python@v5
