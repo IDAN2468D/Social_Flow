@@ -11,6 +11,7 @@ import {
   Bot,
   Clapperboard,
   House,
+  Languages,
   LogIn,
   PenLine,
   Sparkles,
@@ -137,6 +138,8 @@ export function LeftNavRail({
   const currentPath = activePath ?? pathname ?? '/';
 
   const {
+    direction,
+    toggleDirection,
     notifications,
     unreadNotificationsCount: storeUnreadCount,
     fetchNotifications,
@@ -250,24 +253,37 @@ export function LeftNavRail({
     <div className={`sticky top-5 flex flex-col gap-4 ${className}`}>
       {/* Brand Header Card */}
       <div className="rounded-[20px] border border-white/10 bg-[#121521]/72 backdrop-blur-xl p-4 shadow-[0_12px_36px_-12px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]">
-        <Link href="/" className="flex items-center gap-3 no-underline group">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#6366F1] via-[#8B5CF6] to-indigo-400 text-white shadow-[0_0_24px_-4px_rgba(99,102,241,0.65)] transition-transform duration-200 group-hover:scale-105">
-            <Zap className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-lg font-extrabold tracking-tight text-[#F8FAFC]">
-                Social<span className="text-[#6366F1]">Flow</span>
-              </span>
-              <span className="rounded-md border border-indigo-500/30 bg-indigo-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-indigo-300">
-                2.0
-              </span>
+        <div className="flex items-center justify-between gap-2">
+          <Link href="/" className="flex items-center gap-3 min-w-0 no-underline group">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#6366F1] via-[#8B5CF6] to-indigo-400 text-white shadow-[0_0_24px_-4px_rgba(99,102,241,0.65)] transition-transform duration-200 group-hover:scale-105">
+              <Zap className="h-5 w-5" />
             </div>
-            <p className="truncate font-mono text-[11px] text-[#64748B]">
-              Liquid Glass · AI Pulse
-            </p>
-          </div>
-        </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg font-extrabold tracking-tight text-[#F8FAFC]">
+                  Social<span className="text-[#6366F1]">Flow</span>
+                </span>
+                <span className="rounded-md border border-indigo-500/30 bg-indigo-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-indigo-300">
+                  2.0
+                </span>
+              </div>
+              <p className="truncate font-mono text-[11px] text-[#64748B]">
+                Liquid Glass · AI Pulse
+              </p>
+            </div>
+          </Link>
+
+          <button
+            type="button"
+            onClick={toggleDirection}
+            aria-label={`החלף כיוון תצוגה (${direction.toUpperCase()})`}
+            title="Switch RTL / LTR"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 font-mono text-[10px] font-semibold text-[#F8FAFC] hover:border-indigo-500/40 hover:bg-indigo-500/15 transition-all cursor-pointer"
+          >
+            <Languages className="h-3.5 w-3.5 text-indigo-300" />
+            <span>{direction.toUpperCase()}</span>
+          </button>
+        </div>
       </div>
 
       {/* Primary Navigation Links & Notifications */}

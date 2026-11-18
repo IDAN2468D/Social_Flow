@@ -1,51 +1,37 @@
-# SocialFlow — Step-by-Step Implementation Plan (PLAN)
+# SocialFlow — Implementation Plan (PLAN)
 
 **Methodology:** Spec-First (`PRD.md` → `SPEC.md` → `PLAN.md` → Implementation → Verification)  
-**Target Workspace:** `frontend/`
+**Scope:** Dark Liquid Glass 4.0 Pro UI (`frontend/`) + `Back End 13 - Java` Microservices Alignment (`user-service`, `post-service`, `feed-service`, `media-service`, `notification-service`, `ai-service`, `api-gateway :8088`)
 
 ---
 
-## Step 1 — Audit & Spec Setup (Foundation)
-- Inspect existing `frontend/` structure:
-  - `frontend/package.json` (`next ^15.2.0`, `react ^19.0.0`, `tailwindcss ^4.3.5`, `framer-motion`, `lucide-react`, `zustand`, `zod`)
-  - `frontend/next.config.mjs` (`/api/:path*` proxy rewrite to API Gateway `:8088`)
-  - `frontend/app/` routes (`/`, `/community`, `/stories`)
-  - `frontend/store/useSocialStore.ts` & `frontend/lib/actions/social.actions.ts`
-- Author `.agents/PRD.md`, `.agents/SPEC.md`, and `.agents/PLAN.md`.
+## Phase 1 — Spec-First Documentation & Design System Foundation
+- [x] **1.1** Audit `frontend/` (`Next.js 15`, `React 19`, `Tailwind CSS v4`, `Zustand`, `Zod`) and `Back End 13 - Java` microservices (`user-service`, `post-service`, `feed-service`, `media-service`, `notification-service`, `ai-service`, `api-gateway`).
+- [x] **1.2** Author and synchronize `.agents/PRD.md`, `.agents/SPEC.md`, and `.agents/PLAN.md` combining Dark Liquid Glass 4.0 Pro UI with the full microservices architecture.
+- [x] **1.3** Configure `frontend/app/layout.tsx` (`Inter`, `Heebo`, `Plus Jakarta Sans`, `JetBrains Mono`) and `frontend/app/globals.css` (`#090A0F` Obsidian Void, `backdrop-blur-2xl`, specular borders, ambient aurora orbs, `.glass-bento`, `.glass-dock`, GPU animations).
 
-## Step 2 — Design Tokens & Global Styles (Foundation)
-- Update `frontend/app/layout.tsx`:
-  - Load Google Fonts: `Inter`, `Heebo`, `Plus Jakarta Sans`, and `JetBrains Mono`.
-  - Apply Obsidian base (`#090A0F`), `#F8FAFC` text, bilingual `dir="auto"` readiness, and ambient glow orb layers.
-- Update `frontend/app/globals.css`:
-  - Preserve `@import "tailwindcss";` and existing legacy classes for backward compatibility during component migration.
-  - Add Obsidian Liquid Glass CSS custom properties (`#090A0F`, `rgba(18, 21, 33, 0.72)`, `#6366F1`, `#8B5CF6`, `#10B981`, `#F43F5E`, `#F8FAFC`, `#94A3B8`, `#64748B`).
-  - Add `.glass-bento`, `.glass-bento-interactive`, `.glass-dock`, custom dark scrollbars, and animation utilities (`animate-pulse-live`, `animate-shimmer`, `animate-spring-pop`, `animate-fade-up`).
-- Verify CSS compilation via `npm run build`.
+## Phase 2 — API Gateway Routing, State Layer & Back End 13 Alignment
+- [x] **2.1** Configure `api-gateway` (`:8088`) routing and `JwtAuthFilter` public read/health routes (`/api/v1/users/**`, `/api/v1/posts/**`, `/api/v1/stories/**`, `/api/v1/media/**`, `/api/media/**`, `/api/v1/ai/health`, `/api/v1/search`, `/api/v1/feed/trending`).
+- [x] **2.2** Align `user-service` with `Back End 13 - Java`: `JWT` `role` claim (`USER` default), `S3` `profileImageUrl` update (`PUT /api/v1/users/profile`), follow/unfollow by ID or username, and user search (`GET /api/v1/users/search`).
+- [x] **2.3** Align `media-service` (`POST /api/media/presign` & `/api/v1/media/upload-url` for MinIO S3) and add `hibernate.temp.use_jdbc_metadata_defaults: false` across `user-service`, `post-service`, `feed-service`, and `notification-service` for fast Render PostgreSQL startup.
+- [x] **2.4** Implement `frontend/store/useSocialStore.ts` (4 feed tabs, optimistic likes/reposts/bookmarks/follows, WebSocket notifications, live `direction: 'rtl' | 'ltr'` toggle) and `frontend/lib/actions/social.actions.ts` with resilient Demo Mode fallback.
 
-## Step 3 — Core Layout & Bento Navigation
-- Implement `components/layout/AppShell.tsx` (3-column asymmetric desktop grid `260px | minmax(0,640px) | 340px`, ambient glow orbs, responsive mobile sticky header + floating bottom glass dock).
-- Implement `components/layout/LeftNavRail.tsx` (navigation items, WebSocket unread notification badge, user mini-profile pill, gradient **New Post** CTA).
-- Implement `components/layout/RightBentoSidebar.tsx` (Search trigger card, Trending Hashtags & Communities Bento card, Who to Follow + Live Kafka/WS Telemetry badge).
-- Implement `components/feed/FeedHeaderTabs.tsx` (`For You`, `Following`, `Trending`, `Media` sticky `backdrop-blur-xl` switcher).
+## Phase 3 — 3-Column Asymmetric Bento Shell & Navigation
+- [x] **3.1** Build `frontend/components/layout/AppShell.tsx` (3-column desktop grid `260px | minmax(0,640px) | 340px`, ambient glow orbs, mobile sticky glass header & floating bottom dock).
+- [x] **3.2** Build `frontend/components/layout/LeftNavRail.tsx` (navigation links, WebSocket unread badge, live `RTL / LTR` toggle pill, user mini-profile, gradient **New Post** CTA).
+- [x] **3.3** Build `frontend/components/layout/RightBentoSidebar.tsx` (`Ctrl+K` Search & AI RAG card, Trending Hashtags, Who to Follow, and 4-row System Telemetry: `Gateway & Kafka Bus`, `Feed & Elasticsearch 8`, `MinIO S3 & Media`, `AI & LangGraph`).
+- [x] **3.4** Build `frontend/components/feed/FeedHeaderTabs.tsx` (`For You`, `Following`, `Trending`, `Media`).
 
-## Step 4 — Composer, Feed & Post Cards
-- Build `components/composer/PostComposerCard.tsx` with:
-  - Drag-and-drop MinIO S3 presigned media upload + progress bar + multi-image preview grid.
-  - Interactive Poll Builder toggle.
-  - Markdown/code snippet formatting, hashtag autocomplete, and SVG character ring indicator.
-- Build `components/feed/PostCard.tsx` with:
-  - Hover elevation (`border-white/10` → `border-indigo-500/40`), verification badge, `dir="auto"` content typography.
-  - Pinterest/Bento multi-image grid + lightbox preview.
-  - Interactive poll voting bars + connected thread reply lines.
-  - Spring-animated reaction micro-bar (`Like` with Rose `#F43F5E`, `Repost`, `Bookmark`, `Share`, `Comment`) + skeleton loaders.
+## Phase 4 — Composer, Threads, Bookmarks & MinIO S3 Media
+- [x] **4.1** Build `frontend/components/composer/PostComposerCard.tsx` (`dir="auto"`, MinIO S3 presigned drag-and-drop upload + progress bar, interactive poll builder, SVG character ring, AI draft/enhance).
+- [x] **4.2** Build `frontend/components/feed/PostCard.tsx` and `frontend/components/feed/SocialFlowHome.tsx` (connected thread lines, 6-reaction micro-bar, quote repost modal, Bento multi-image grid + lightbox, interactive poll bars).
+- [x] **4.3** Build `frontend/app/bookmarks/page.tsx` for saved posts in Obsidian Liquid Glass styling.
 
-## Step 5 — Profile Bento View, Auth Pages & Instant Search
-- Build `components/profile/BentoProfileHeader.tsx` (hero banner, glass avatar card, 4-tile Bento stats grid, edit profile modal, media/posts/likes tabs).
-- Build `components/search/CommandSearchModal.tsx` (`Ctrl+K` / `Cmd+K` Elasticsearch instant search across posts, users, and hashtags + AI RAG Feed Q&A trigger).
-- Upgrade Login/Register split-screen glass auth views and connect `/stories` + `/(social)/community` routes to the new `AppShell`.
+## Phase 5 — Elasticsearch `Ctrl+K` Search, Bento Profile & Auth Views
+- [x] **5.1** Build `frontend/components/search/CommandSearchModal.tsx` (`Ctrl+K` / `Cmd+K` debounced Elasticsearch search across posts, users, and hashtags with `highlightMatch` term highlighting, keyboard navigation, and AI RAG Feed Q&A trigger).
+- [x] **5.2** Build `frontend/components/profile/BentoProfileHeader.tsx`, `frontend/components/profile/ProfileView.tsx`, and `/profile` + `/profile/[username]` routes with 4-tile Bento stats and S3 profile image support.
+- [x] **5.3** Connect `/stories`, `/(social)/community`, `/login`, and `/register` routes to the Obsidian Liquid Glass design system.
 
-## Step 6 — Build Verification & GitHub Push
-- Run `npm run build` (and TypeScript typecheck `npx tsc --noEmit`) inside `frontend/` (on Windows: `cmd /c npm run build`).
-- Smoke-test all routes (`/`, `/community`, `/stories`, profile, auth) and verify API Gateway `/api/**` + WebSocket STOMP + MinIO/Elasticsearch integrations remain intact.
-- Fix any TypeScript, lint, or CSS issues, then commit and push to GitHub.
+## Phase 6 — Full-Stack Verification & QA Sign-Off
+- [ ] **6.1** Run full Java test suite (`mvn test`), AI service Python tests (`pytest ai-service/tests/test_agent.py`), and frontend typecheck + production build (`npx tsc --noEmit` & `npm run build`).
+- [ ] **6.2** Verify zero regressions across all microservices and routes, and complete QA sign-off (`@qa-verifier`).
