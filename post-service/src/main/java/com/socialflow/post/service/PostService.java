@@ -386,7 +386,8 @@ public class PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found with id: " + postId));
 
-        if (!post.getAuthorId().equals(currentUser.getUserId())) {
+        boolean isAdmin = currentUser != null && "ADMIN".equalsIgnoreCase(currentUser.getRole());
+        if (!isAdmin && (currentUser == null || !post.getAuthorId().equals(currentUser.getUserId()))) {
             throw new IllegalArgumentException("Unauthorized: You can only delete your own posts");
         }
 

@@ -185,4 +185,27 @@ class JwtAuthFilterTest {
         assertEquals(HttpStatus.UNAUTHORIZED, putProfile.getResponse().getStatusCode());
         verify(filterChain, never()).filter(any());
     }
+
+    @Test
+    void testAdminRoleClaimForwardsNormalizedRoleHeader() {
+        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        String adminToken = Jwts.builder()
+                .claims(Map.of("userId", 7L, "email", "admin@socialflow.ai", "role", "ROLE_ADMIN"))
+                .subject("admin")
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + 60000))
+                .signWith(key)
+                .compact();
+
+        MockServerHttpRequest request = MockServerHttpRequest.put("/api/v1/users/idan/role")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        jwtAuthFilter.filter(exchange, filterChain).block();
+
+        verify(filterChain, times(1)).filter(argThat(ex ->
+                "ADMIN".equals(ex.getRequest().getHeaders().getFirst("X-User-Role")) &&
+                "admin".equals(ex.getRequest().getHeaders().getFirst("X-Auth-Username"))));
+    }
 }

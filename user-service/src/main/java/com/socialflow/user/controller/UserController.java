@@ -6,8 +6,10 @@ import com.socialflow.user.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -39,6 +41,7 @@ public class UserController {
         return ResponseEntity.ok(profile);
     }
 
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PutMapping({"/profile", "/profile/{username}"})
     public ResponseEntity<UserProfileDto> updateProfile(
             @PathVariable(required = false) String username,
@@ -47,11 +50,22 @@ public class UserController {
             @RequestHeader(value = "X-Auth-Username", required = false) String authUsernameHeader,
             @RequestHeader(value = "X-User-Name", required = false) String userNameHeader) {
         String actingUsername = requireActingUsername(authentication, authUsernameHeader, userNameHeader);
-        if (username != null && !username.isBlank() && !username.equalsIgnoreCase(actingUsername)) {
+        boolean isAdmin = hasAdminRole(authentication);
+        String targetUsername = (username != null && !username.isBlank()) ? username : actingUsername;
+        if (!isAdmin && !targetUsername.equalsIgnoreCase(actingUsername)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "אין הרשאה לעדכן פרופיל של משתמש אחר");
         }
-        UserProfileDto updated = userService.updateProfile(actingUsername, request);
+        UserProfileDto updated = userService.updateProfile(targetUsername, request);
         return ResponseEntity.ok(updated);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{targetIdentifier}/role")
+    public ResponseEntity<UserProfileDto> updateUserRole(
+            @PathVariable String targetIdentifier,
+            @RequestBody Map<String, String> body) {
+        String requestedRole = body != null ? body.get("role") : null;
+        return ResponseEntity.ok(userService.updateUserRole(targetIdentifier, requestedRole));
     }
 
     @GetMapping("/search")
@@ -64,6 +78,7 @@ public class UserController {
         return ResponseEntity.ok(userService.searchUsers(q, currentUsername));
     }
 
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PostMapping("/{targetIdentifier}/follow")
     public ResponseEntity<Map<String, String>> followUser(
             @PathVariable String targetIdentifier,
@@ -75,6 +90,7 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "עוקב בהצלחה אחרי משתמש " + targetIdentifier));
     }
 
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @DeleteMapping({"/{targetIdentifier}/follow", "/{targetIdentifier}/unfollow"})
     public ResponseEntity<Map<String, String>> unfollowUser(
             @PathVariable String targetIdentifier,
@@ -90,6 +106,19 @@ public class UserController {
     public ResponseEntity<List<Long>> getFollowingIds(@PathVariable Long userId) {
         List<Long> ids = userService.getFollowingIds(userId);
         return ResponseEntity.ok(ids);
+    }
+
+    private boolean hasAdminRole(Authentication authentication) {
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            if ("ROLE_ADMIN".equalsIgnoreCase(authority.getAuthority())
+                    || "ADMIN".equalsIgnoreCase(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String resolveActingUsername(

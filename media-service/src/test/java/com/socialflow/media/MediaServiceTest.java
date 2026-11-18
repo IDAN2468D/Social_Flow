@@ -16,9 +16,15 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import java.net.URI;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,5 +60,19 @@ class MediaServiceTest {
         assertThat(response.fileKey()).endsWith(".png");
         assertThat(response.uploadUrl()).isEqualTo("http://localhost:9000/socialflow-media/uploads/42/test.png");
         assertThat(response.accessUrl()).contains("http://localhost:9000/socialflow-media/uploads/42/");
+    }
+
+    @Test
+    @DisplayName("deleteMedia enforces ownership unless ADMIN and deletes S3 object")
+    void deleteMedia_OwnershipAndAdmin() {
+        mediaService.deleteMedia(42L, false, "uploads/42/avatar.png");
+        verify(s3Client).deleteObject(any(DeleteObjectRequest.class));
+
+        assertThatThrownBy(() -> mediaService.deleteMedia(42L, false, "uploads/99/other.png"))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        mediaService.deleteMedia(42L, true, "uploads/99/other.png");
+        verify(s3Client, org.mockito.Mockito.times(2)).deleteObject(any(DeleteObjectRequest.class));
     }
 }

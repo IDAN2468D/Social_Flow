@@ -97,9 +97,11 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             String username = claims.getSubject();
             Object userIdObj = claims.get("userId");
             Object emailObj = claims.get("email");
+            Object roleObj = claims.get("role");
 
             String userIdStr = userIdObj != null ? String.valueOf(userIdObj) : "1";
             String emailStr = emailObj != null ? String.valueOf(emailObj) : "";
+            String roleStr = normalizeRole(roleObj != null ? String.valueOf(roleObj) : "USER");
 
             // 4. Mutate Request and Forward Identity Headers to downstream microservices
             ServerHttpRequest mutatedRequest = request.mutate()
@@ -108,6 +110,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     .header("X-User-Email", emailStr)
                     .header("X-User-Name", username)
                     .header("X-Auth-Username", username)
+                    .header("X-User-Role", roleStr)
                     .build();
 
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
@@ -159,6 +162,14 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         }
 
         return null;
+    }
+
+    private String normalizeRole(String rawRole) {
+        if (rawRole == null || rawRole.isBlank()) {
+            return "USER";
+        }
+        String trimmed = rawRole.trim().toUpperCase();
+        return trimmed.startsWith("ROLE_") ? trimmed.substring(5) : trimmed;
     }
 
     private Claims parseClaims(String token) {

@@ -45,6 +45,19 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
+    public String extractRole(String token) {
+        Claims claims = extractAllClaims(token);
+        Object roleObj = claims.get("role");
+        if (roleObj == null) {
+            return "USER";
+        }
+        String raw = String.valueOf(roleObj).trim().toUpperCase();
+        if (raw.isEmpty()) {
+            return "USER";
+        }
+        return raw.startsWith("ROLE_") ? raw.substring(5) : raw;
+    }
+
     public Long extractUserId(String token) {
         Claims claims = extractAllClaims(token);
         Object userIdObj = claims.get("userId");
