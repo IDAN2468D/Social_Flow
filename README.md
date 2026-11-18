@@ -1,338 +1,236 @@
-# 🌊 SocialFlow — פלטפורמת רשת חברתית מבוזרת ומבוססת בינה מלאכותית (AI)
+# 🌊 SocialFlow — פרויקט 1: רשת חברתית מבוזרת ב-Java Microservices (Back End Only)
 
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg?style=flat&logo=nextdotjs)](https://nextjs.org/)
 [![Java](https://img.shields.io/badge/Java-17-orange.svg?style=flat&logo=openjdk)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.4-brightgreen.svg?style=flat&logo=springboot)](https://spring.io/projects/spring-boot)
 [![Spring Cloud Gateway](https://img.shields.io/badge/Spring%20Cloud-Gateway-blue.svg?style=flat&logo=spring)](https://spring.io/projects/spring-cloud-gateway)
-[![Gemini](https://img.shields.io/badge/Google%20Gemini-3.5%20Flash--Lite-blueviolet.svg?style=flat&logo=google)](https://aistudio.google.com/)
-[![MCP](https://img.shields.io/badge/Protocol-Model%20Context%20Protocol%20(MCP)-blue.svg?style=flat)](https://modelcontextprotocol.io/)
 [![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-7.6.0-black.svg?style=flat&logo=apachekafka)](https://kafka.apache.org/)
 [![Elasticsearch](https://img.shields.io/badge/Elasticsearch-8.13.0-005571.svg?style=flat&logo=elasticsearch)](https://www.elastic.co/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg?style=flat&logo=postgresql)](https://www.postgresql.org/)
 [![MinIO](https://img.shields.io/badge/Storage-MinIO%20S3-red.svg?style=flat&logo=minio)](https://min.io/)
-[![Render](https://img.shields.io/badge/Cloud-Render%20Blueprint-46E3B7.svg?style=flat&logo=render)](https://render.com/)
+[![Postman](https://img.shields.io/badge/Tested%20with-Postman-FF6C37.svg?style=flat&logo=postman)](postman/SocialFlow.postman_collection.json)
+[![Render](https://img.shields.io/badge/Cloud-Render%20Blueprint-46E3B7.svg?style=flat&logo=render)](render.yaml)
 
-**SocialFlow** היא פלטפורמת רשת חברתית מתקדמת בארכיטקטורת מיקרו-שירותים מבוזרת ומונחית אירועים (Event-Driven Microservices), המשלבת ממשק **Next.js 15** בעיצוב **Dark Liquid Glass 4.0 Pro**, שירותי **Spring Boot 3**, מנוע בינה מלאכותית **Google Gemini 3.5 Flash-Lite**, שרת **MCP (Model Context Protocol)**, **Apache Kafka** וחיפוש **Elasticsearch**.
-
-המערכת בנויה לפי עקרונות הפרדת שירותים מלאה, מוכנה להרצה מקומית מלאה באמצעות **Docker Compose** ולפריסה בענן באמצעות **Render Blueprint** (`render.yaml`).
+**SocialFlow** היא מערכת **Back End** מבוזרת ומונחית אירועים (Event-Driven Microservices) ב-**Java 17 & Spring Boot 3**, שתוכננה ונבנתה בהתאם לדרישות **פרויקט 1 בחוברת הקורס `Back End AI: Hi-Tech Gateway` (עמודים 10–11 ו-22)** — מיקרו-שירותים עצמאיים, **API Gateway**, אבטחת **JWT + HttpOnly Cookies + Roles**, **Apache Kafka**, **Elasticsearch 8**, אחסון תמונות ב-**S3 / MinIO**, טיפול מרכזי בשגיאות, בדיקות **JUnit 5 + Mockito**, אוסף **Postman**, **Docker Compose**, **Kubernetes** ו-**CI/CD**.
 
 ---
 
 ## 📑 תוכן העניינים
 - [🏛 ארכיטקטורת המערכת](#-ארכיטקטורת-המערכת)
-- [🎨 ממשק Dark Liquid Glass 4.0 Pro וניתוב דפים](#-ממשק-dark-liquid-glass-40-pro-וניתוב-דפים)
-- [🧩 פירוט המיקרו-שירותים והרכיבים](#-פירוט-המיקרו-שירותים-והרכיבים)
-- [🌟 פיצ'רים מרכזיים במערכת](#-פיצרים-מרכזיים-במערכת)
-- [🤖 יכולות ה-AI ומנוע ה-RAG (Gemini 3.5 Flash-Lite)](#-יכולות-ה-ai-ומנוע-ה-rag-gemini-35-flash-lite)
-- [🔌 שרת ה-MCP הרשמי (Model Context Protocol)](#-שרת-ה-mcp-הרשמי-model-context-protocol)
-- [⚡ ארכיטקטורה מונחית אירועים (Kafka Topics)](#-ארכיטקטורה-מונחית-אירועים-kafka-topics)
+- [🧩 פירוט השירותים והתשתיות](#-פירוט-השירותים-והתשתיות)
+- [🔒 אבטחת שרת, JWT, Cookies ו-Roles](#-אבטחת-שרת-jwt-cookies-ו-roles)
+- [⚡ ארכיטקטורה מונחית אירועים (Kafka & Elasticsearch 8)](#-ארכיטקטורה-מונחית-אירועים-kafka--elasticsearch-8)
 - [🌐 מיפוי פורטים וקונטיינרים](#-מיפוי-פורטים-וקונטיינרים)
-- [📡 תיעוד ה-REST API וה-WebSocket](#-תיעוד-ה-rest-api-וה-websocket)
-- [🚀 מדריך התקנה והרצה מהירה (Docker Compose)](#-מדריך-התקנה-והרצה-מהירה-docker-compose)
+- [📡 תיעוד ה-REST API ובדיקות Postman](#-תיעוד-ה-rest-api-ובדיקות-postman)
+- [🚀 הרצה מקומית (Docker Compose) ו-Kubernetes](#-הרצה-מקומית-docker-compose-ו-kubernetes)
 - [☁️ פריסה בענן (Render Blueprint)](#️-פריסה-בענן-render-blueprint)
-- [🔒 אבטחה ושמירת מפתחות סודיים](#-אבטחה-ושמירת-מפתחות-סודיים)
-- [🧪 בדיקות אינטגרציה ו-CI/CD](#-בדיקות-אינטגרציה-ו-cicd)
-- [📁 מבנה הקבצים והתיקיות בפרויקט](#-מבנה-הקבצים-והתיקיות-בפרויקט)
-- [👨‍💻 יוצר ורישיון](#-יוצר-ורישיון)
+- [🧪 בדיקות יחידה, אינטגרציה ו-CI/CD](#-בדיקות-יחידה-אינטגרציה-ו-cicd)
+- [📁 מבנה הפרויקט](#-מבנה-הפרויקט)
 
 ---
 
 ## 🏛 ארכיטקטורת המערכת
 
-המערכת מבוססת על עקרון **Database-per-Service** וניתוק צימוד (Decoupling) בין השירותים. כל התקשורת החיצונית מנותבת דרך **API Gateway**, העברת האירועים מתבצעת אסינכרונית דרך **Apache Kafka**, חיפושי הפיד מואצים באמצעות **Elasticsearch**, קובצי המדיה נשמרים ב-**MinIO / S3**, ורכיבי ה-AI מנוהלים עצמאית בשירות **FastAPI Python**.
+המערכת מבוססת על **Database-per-Service** והפרדת אחריות מלאה (Decoupling). כל קריאות ה-REST וה-WebSocket נכנסות דרך **API Gateway (`:8088`)**, אימות ה-`JWT` והרשאות ה-`Roles` מועברים לשירותים, והעדכונים האסינכרוניים זורמים דרך **Apache Kafka** אל **Elasticsearch 8** ומנגנון ההתראות.
 
 ```mermaid
 flowchart TD
-    Client["💻 ממשק ווב Next.js 15 (Dark Liquid Glass 4.0 Pro - Port 3000)"]
-    Agents["🤖 סוכני AI חיצוניים (Cursor / Claude / Antigravity)"]
+    Client["🧪 Postman / REST Clients / Automated Tests"]
+    Gateway["🚪 Spring Cloud API Gateway (:8088)\nJwtAuthFilter • X-User-Role • GatewayExceptionHandler"]
 
-    Gateway["🚪 שער כניסה ראשי: API Gateway (Spring Cloud - Port 8088)"]
-    MCPServer["🔌 שרת MCP רשמי (SocialFlow FastMCP Server)"]
+    Client -->|HTTP REST / WebSocket| Gateway
 
-    Client -->|HTTP / REST / WS| Gateway
-    Agents -->|JSON-RPC Tools| MCPServer
-    MCPServer -->|REST APIs| Gateway
-
-    subgraph Core_Services ["מיקרו-שירותי הליבה (Java Spring Boot 3)"]
-        UserService["👤 User Service (Port 8081)"]
-        PostService["📝 Post Service (Port 8082)"]
-        FeedService["📰 Feed Service (Port 8083)"]
-        MediaService["🖼️ Media Service (Port 8084)"]
-        NotifService["🔔 Notification Service (Port 8085)"]
+    subgraph Core_Services ["מיקרו-שירותי Java (Spring Boot 3.3.4)"]
+        UserService["👤 User Service (:8081)\nAuth JWT + Cookies + Roles (USER/ADMIN)"]
+        PostService["📝 Post Service (:8082)\nPosts, Polls, Reactions, Comments, Stories"]
+        FeedService["📰 Feed Service (:8083)\nFeeds & Elasticsearch Search"]
+        MediaService["🖼️ Media Service (:8084)\nS3 / MinIO Presigned URLs & Delete"]
+        NotifService["🔔 Notification Service (:8085)\nAlerts REST & WebSocket STOMP"]
     end
 
-    subgraph AI_Intelligence ["שירות הבינה המלאכותית (Python FastAPI)"]
-        AIService["✨ AI Service: Gemini 3.5 Flash-Lite (Port 8086)\n• Content Moderation & Smart Tags\n• RAG Feed Q&A Engine\n• Intelligent Chat Replies"]
-    end
+    AIService["✨ AI Service (:8086)\nFastAPI + Gemini RAG (אופציונלי)"]
 
-    Gateway -->|/api/auth/**, /api/users/**| UserService
-    Gateway -->|/api/v1/posts/**| PostService
+    Gateway -->|/api/auth/**, /api/v1/users/**| UserService
+    Gateway -->|/api/v1/posts/**, /api/v1/stories/**| PostService
     Gateway -->|/api/v1/feed/**, /api/v1/search/**| FeedService
     Gateway -->|/api/v1/media/**| MediaService
     Gateway -->|/api/v1/notifications/**, /ws/**| NotifService
     Gateway -->|/api/v1/ai/**| AIService
 
-    subgraph Storage_and_Bus ["שכבת תשתית, נתונים ומסרים"]
-        Postgres[("🐘 PostgreSQL 16 (Port 5435)\nסכמות מבודדות לכל שירות")]
-        Kafka{{"⚡ Apache Kafka (Port 9095 / 9092)\nאפיק אירועים אסינכרוני (KRaft)"}}
-        KafkaUI["📊 Kafka UI\nניטור Topics ואירועים"]
-        Elastic[("🔍 Elasticsearch 8.13 (Port 9205 / 9200)\nמנוע אינדוקס וחיפוש מהיר")]
-        MinIO[("🪣 MinIO / S3 (Port 9000/9001)\nאחסון מדיה ותמונות")]
+    subgraph Storage_and_Bus ["תשתית נתונים, חיפוש, אחסון ומסרים"]
+        Postgres[("🐘 PostgreSQL 16 (:5435)")]
+        Kafka{{"⚡ Apache Kafka (:9095 / :9092)\nKRaft • Topics: post-events, user-events"}}
+        KafkaUI["📊 Kafka UI (:8080)"]
+        Elastic[("🔍 Elasticsearch 8.13 (:9205 / :9200)")]
+        MinIO[("🪣 MinIO S3 (:9000 / :9001)")]
     end
 
     UserService --> Postgres
     PostService --> Postgres
     FeedService --> Postgres
     NotifService --> Postgres
-
     MediaService --> MinIO
-    PostService -.->|פרסום אירועי פוסטים וסקרים| Kafka
-    UserService -.->|פרסום אירועי מעקב| Kafka
 
-    Kafka -.->|אינדוקס אוטומטי לזמן אמת| FeedService
-    Kafka -.->|התראות חיות| NotifService
+    PostService -.->|"post-events"| Kafka
+    UserService -.->|"user-events"| Kafka
+    Kafka -.->|"feed-service-group"| FeedService
+    Kafka -.->|"notification-service-group"| NotifService
     KafkaUI --> Kafka
-
     FeedService --> Elastic
 ```
 
 ---
 
-## 🎨 ממשק Dark Liquid Glass 4.0 Pro וניתוב דפים
+## 🧩 פירוט השירותים והתשתיות
 
-הפרונטאנד בנוי ב-**Next.js 15 (App Router)**, **React**, **TypeScript**, **Tailwind CSS**, **Framer Motion** ו-**Zustand**, עם תמיכה מלאה ב-**RTL** ועיצוב **Dark Liquid Glass 4.0 Pro** (רקע אובסידיאן `#090A0F`, כרטיסי זכוכית שקופים למחצה ותאורת אינדיגו/סגול).
-
-### הפרדת מסכי האימות מהפיד
-- **`/` (דף הבית — הפיד הראשי)**: מוגן אימות. משתמש ללא `JWT` תקף מופנה אוטומטית אל `/login` (`router.replace('/login')`), וסרגל הניווט הצדדי (`LeftNavRail`) כולל כפתור **התנתקות מהמערכת**.
-- **`/login` ו-`/register` (מסכי אימות עצמאיים)**:
-  - עיצוב ייעודי בסגנון **Dark Liquid Glass 4.0 Pro** עם בורר מצבים עליון (`התחברות` | `הרשמה`), ללא קישורי אורח או מעקף לפיד.
-  - תמיכה בהתחברות לפי **שם משתמש או אימייל**.
-  - תצוגה מקדימה חיה של אווטאר ב-`/register` לפי שם המשתמש.
-  - טיפול מלא בצבעי `Autofill` כהים וגלישת הודעות שגיאה (`overflow-wrap: anywhere`).
-- **עמודים נוספים**: `/stories` (נגן סטוריז), `/bookmarks` (סימניות), `/community` (קהילה), `/profile` ו-`/profile/[username]`.
-
----
-
-## 🧩 פירוט המיקרו-שירותים והרכיבים
-
-| # | שם השירות | טכנולוגיה | פורט מקומי | תפקיד ותחומי אחריות |
+| # | שם השירות | טכנולוגיה | פורט מקומי | תחומי אחריות מרכזיים |
 | :---: | :--- | :--- | :---: | :--- |
-| 1 | **`socialflow-frontend`** | Next.js 15, React, TypeScript, Tailwind CSS | `3000` | ממשק **Dark Liquid Glass 4.0 Pro**, דפי `/login` ו-`/register` נפרדים, פיד, סטוריז, סימניות, קהילה ופרופיל. |
-| 2 | **`socialflow-api-gateway`** | Spring Cloud Gateway (Netty Async) | `8088` | ניתוב מרכזי, אימות `JWT`, העברת כותרות זיהוי וניהול `CORS`. |
-| 3 | **`socialflow-user-service`** | Spring Boot 3, Spring Security, JPA | `8081` | הרשמה והתחברות (`username` או `email`), הפקת `JWT`, שמירת `role` (`DEFAULT 'USER'`) ומעקב (`Follow / Unfollow`). |
-| 4 | **`socialflow-post-service`** | Spring Boot 3, Hibernate, Kafka Producer | `8082` | פוסטים, סקרים חיים, 6 סוגי `Reactions`, תגובות, `Reposts` וסימניות. |
-| 5 | **`socialflow-feed-service`** | Spring Boot 3, Elasticsearch Client | `8083` | פידים ("עבורך", "נעקבים", "טרנדים"), האשטאגים חמים וחיפוש טקסט ב-`Elasticsearch` (עם הגנת fallback). |
-| 6 | **`socialflow-media-service`** | Spring Boot 3, AWS S3 Java SDK v2 | `8084` | העלאת מדיה והפקת `Presigned URLs` מול `MinIO` / `S3`. |
-| 7 | **`socialflow-notification-service`** | Spring Boot 3, WebSocket (STOMP), JPA | `8085` | התראות בזמן אמת ב-`WebSocket` וניהול היסטוריית התראות. |
-| 8 | **`socialflow-ai-service`** | Python 3.11, FastAPI, Google GenAI SDK | `8086` | ניתוח פוסטים, מנוע `RAG` על הפיד ומענה צ'אט בעברית עם **Gemini 3.5 Flash-Lite**. |
-| 9 | **`socialflow-postgres`** | PostgreSQL 16 | `5435` | מסד נתונים רלציוני עם סכמות/טבלאות מבודדות (`user_db`, `post_db`, `feed_db`, `notif_db`). |
-| 10 | **`socialflow-kafka`** | Confluent Kafka 7.6.0 (`KRaft`) | `9095` | מתווך אירועים מבוזר ללא Zookeeper (נתמך גם ב-Docker Compose וגם ב-`render.yaml`). |
-| 11 | **`socialflow-kafka-ui`** | Provectus Kafka UI | ענן (`8080`) | ממשק ויזואלי לצפייה ב-Topics, הצרכנים וההודעות של `Kafka` ב-`Render`. |
-| 12 | **`socialflow-elasticsearch`** | Elasticsearch 8.13.0 | `9205` | מנוע אינדוקס וחיפוש טקסט מלא לפוסטים (זמין גם ב-Docker Compose וגם ב-`render.yaml`). |
-| 13 | **`socialflow-minio`** | MinIO Object Storage (`S3 API`) | `9000` / `9001` | אחסון אובייקטים מקומי תואם `S3` לתמונות וקובצי מדיה. |
+| 1 | **`socialflow-api-gateway`** | Spring Cloud Gateway (Netty WebFlux) | `8088` | ניתוב מרכזי, פילטר `JWT` (`Bearer` + `HttpOnly Cookie`), העברת `X-User-Role` / `X-User-Id`, מדיניות CORS וטיפול שגיאות מרכזי (`GatewayExceptionHandler`). |
+| 2 | **`socialflow-user-service`** | Spring Boot 3, Spring Security, JPA | `8081` | רישום והתחברות (`username` או `email`), `HttpOnly` JWT עם `role` (`USER` / `ADMIN`), אכיפת `@EnableMethodSecurity` ו-`@PreAuthorize`, עדכון פרופיל ומעקב (`Follow / Unfollow`). |
+| 3 | **`socialflow-post-service`** | Spring Boot 3, Hibernate, Kafka Producer | `8082` | יצירה/מחיקת פוסטים (בעלים או `ADMIN`), סקרים, `Reactions`, תגובות, סימניות, סטוריז ושידור ל-Kafka. |
+| 4 | **`socialflow-feed-service`** | Spring Boot 3, Spring Data Elasticsearch | `8083` | צריכת אירועים מ-Kafka, אינדוקס ומחיקה בזמן אמת ב-`Elasticsearch 8`, פידים וחיפוש טקסט מלא / האשטאגים. |
+| 5 | **`socialflow-media-service`** | Spring Boot 3, AWS S3 SDK v2 | `8084` | בידוד הגישה ל-`S3 / MinIO`: יצירת `Presigned URLs` להעלאת תמונות ומדיה ומחיקת אובייקטים עם בדיקת בעלות/`ADMIN`. |
+| 6 | **`socialflow-notification-service`** | Spring Boot 3, WebSocket STOMP, Kafka Consumer | `8085` | האזנה עצמאית ל-`post-events` ו-`user-events`, שמירת התראות ב-DB, ממשק REST ודחיפה בזמן אמת ב-`WebSocket`. |
+| 7 | **`socialflow-ai-service`** | Python 3.11, FastAPI, Gemini SDK | `8086` | שירות עזר אופציונלי לניתוח פוסטים ו-RAG. |
+| 8 | **`socialflow-postgres`** | PostgreSQL 16 Alpine | `5435` | מסד נתונים מבודד לכל מיקרו-שירות (`socialflow_db`, `post_db`, `feed_db`, `notification_db`). |
+| 9 | **`socialflow-kafka` + `kafka-ui`** | Confluent Kafka 7.6.0 (`KRaft`) + Provectus UI | `9095` / `8080` | אפיק אירועים אסינכרוני וממשק ניטור ויזואלי ל-Topics ולצרכנים. |
+| 10 | **`socialflow-elasticsearch`** | Elasticsearch 8.13.0 | `9205` | אינדוקס וחיפוש מהיר של פוסטים ותגיות. |
+| 11 | **`socialflow-minio`** | MinIO Object Storage (`S3 API`) | `9000` / `9001` | אחסון מדיה ותמונות פרופיל מקומי תואם `S3`. |
 
 ---
 
-## 🌟 פיצ'רים מרכזיים במערכת
+## 🔒 אבטחת שרת, JWT, Cookies ו-Roles
 
-- **📊 סקרים אינטראקטיביים חיים**: יצירת סקר מתיבת הפרסום, הצבעה בלחיצה אחת, חישוב אחוזים מונפש ומניעת הצבעה כפולה בשרת.
-- **💬 צ'אט מסנג'ר פרטי (DMs)**: מגירת שיחות צפה ומנוע מענה חכם בעברית המשולב עם מודל ה-AI.
-- **⭕ סטוריז זמניים (Stories ל-24 שעות)**: מגש סטוריז עליון בראש הפיד ונגן מסך מלא במסלול `/stories`.
-- **👍 מערכת Reactions מתקדמת**: תמיכה ב-6 רגשות (`LIKE`, `LOVE`, `CELEBRATE`, `SUPPORT`, `INSIGHTFUL`, `FUNNY`).
-- **📰 מגוון תצוגות פיד**: **עבורך (For You)**, **נעקבים (Following)**, **טרנדים (Trending)** וסינון לפי **האשטאגים חמים**.
-- **🔔 התראות חיות בזמן אמת**: חיבור `WebSocket (STOMP)` עם עדכון מונה התראות רציף.
-
----
-
-## 🤖 יכולות ה-AI ומנוע ה-RAG (Gemini 3.5 Flash-Lite)
-
-שירות ה-`ai-service` מריץ את **Gemini 3.5 Flash-Lite**:
-
-1. **✨ שיפור וניתוח פוסט (`POST /api/v1/ai/analyze`)**: משפר ניסוח, מפיק האשטאגים רלוונטיים ומבצע בדיקת נאותות תוכן.
-2. **🔍 מנוע RAG לתשאול הפיד (`POST /api/v1/ai/ask-feed`)**: שולף פוסטים וסקרים עדכניים מ-`feed-service` ומפיק תשובה מנומקת בעברית עם מקורות.
-3. **💬 מענה חכם בצ'אט (`POST /api/v1/ai/chat-reply`)**: מפיק תגובות צ'אט טבעיות בעברית.
+- **הנפקת JWT ו-Cookies**: שירות `user-service` מפיק טוקן `JWT` הכולל `userId`, `email`, `sub` ו-`role` (`USER` כברירת מחדל, `ADMIN` לניהול), ומחזיר אותו הן בגוף ה-JSON והן כ-`Set-Cookie: jwt=...; HttpOnly; SameSite=Lax`.
+- **שער כניסה מאובטח (`api-gateway`)**: `JwtAuthFilter` מאמת את החתימה והתוקף עוד בשער (`401 Unauthorized` ב-JSON מובנה לבקשות ללא טוקן בנתיבים מוגנים), ומעביר כותרות זיהוי (`X-User-Id`, `X-Auth-Username`, `X-User-Role`) לכל מיקרו-שירות.
+- **הרשאות ברמת המתודה (`@PreAuthorize`)**:
+  - `user-service`: `PUT /api/v1/users/{target}/role` פתוח ל-`ADMIN` בלבד; עדכון פרופיל פתוח לבעלים או ל-`ADMIN`.
+  - `post-service`: פעולות כתיבה ו-`/bookmarks` דורשות `.authenticated()`, ומחיקת פוסט מותרת לבעל הפוסט או ל-`ADMIN`.
+  - `media-service`: מחיקת אובייקט (`DELETE /api/v1/media?key=...`) מותרת לבעל הקובץ (`uploads/{userId}/...`) או ל-`ADMIN`.
+- **ניהול שגיאות מרכזי**: בכל 5 שירותי ה-Spring MVC קיים `@RestControllerAdvice` (`GlobalExceptionHandler`), וב-`api-gateway` קיים `GatewayExceptionHandler` (`ErrorWebExceptionHandler`).
 
 ---
 
-## 🔌 שרת ה-MCP הרשמי (Model Context Protocol)
+## ⚡ ארכיטורה מונחית אירועים (Kafka & Elasticsearch 8)
 
-הפרויקט כולל שרת **MCP** בנתיב [`mcp-server/socialflow_mcp_server.py`](mcp-server/socialflow_mcp_server.py):
-- `socialflow_get_feed`: שליפת פוסטים וסקרים מהפיד.
-- `socialflow_create_post`: פרסום פוסטים או סקרים חדשים.
-- `socialflow_vote_poll`: הצבעה בסקר פעיל.
-- `socialflow_search`: חיפוש פוסטים, תגיות ומשתמשים.
-- `socialflow_ask_feed_rag`: תשאול סמנטי של הפיד.
-- `socialflow_system_health`: דוח בריאות שירותים.
-
----
-
-## ⚡ ארכיטקטורה מונחית אירועים (Kafka Topics)
-
-שרת ה-`Kafka` רץ במצב `KRaft` (פורט `9095` מקומית, `9092` פנימית ב-Docker/Render):
-- **`post-events`**: יצירה/עריכה של פוסט או סקר -> אינדוקס אסינכרוני ב-`feed-service` / `Elasticsearch`.
-- **`user-events`**: פעולות מעקב (`Follow / Unfollow`) -> עדכון גרף הנעקבים.
-- **`reaction-events`**: סימון תגובות וריאקשנים -> עדכון מדדי טרנדים.
-- **`notification-events`**: הפצת התראות בזמן אמת ל-`WebSocket` ב-`notification-service`.
+- **`post-events`** (נשלח מ-`post-service`): `POST_CREATED`, `POST_LIKED`, `COMMENT_CREATED`, `POST_REPOSTED`, `POST_PINNED`, `POST_DELETED`.
+- **`user-events`** (נשלח מ-`user-service`): `UserRegisteredEvent`, `UserFollowedEvent`.
+- **קבוצות צרכנים (`Consumer Groups`) עצמאיות**:
+  - `feed-service-group` ([`FeedKafkaConsumer`](feed-service/src/main/java/com/socialflow/feed/consumer/FeedKafkaConsumer.java)) — מאנדקס פוסטים, מעדכן מונים ומוחק פוסטים מ-`Elasticsearch` בעת `POST_DELETED`, ומעדכן קשרי מעקב ב-DB.
+  - `notification-service-group` ([`NotificationKafkaConsumer`](notification-service/src/main/java/com/socialflow/notification/service/NotificationKafkaConsumer.java)) — מתעד התראות `LIKE`, `COMMENT` ו-`FOLLOW` ושולח ב-`WebSocket`.
 
 ---
 
 ## 🌐 מיפוי פורטים וקונטיינרים
 
-| שירות | פורט פנימי בקונטיינר | פורט גישה מקומי (Host) | כתובת גישה מקומית |
+| שירות | פורט בקונטיינר | פורט במארח (Host) | כתובת גישה מקומית |
 | :--- | :---: | :---: | :--- |
-| **ממשק המשתמש (`frontend`)** | `3000` | **`3000`** | [http://localhost:3000](http://localhost:3000) |
-| **שער הכניסה (`api-gateway`)** | `8088` | **`8088`** | [http://localhost:8088](http://localhost:8088) |
-| **שירות AI (`ai-service`)** | `8086` | **`8086`** | [http://localhost:8086/health](http://localhost:8086/health) |
-| **שירות משתמשים (`user-service`)** | `8081` | **`8081`** | [http://localhost:8081](http://localhost:8081) |
-| **שירות פוסטים (`post-service`)** | `8082` | **`8082`** | [http://localhost:8082](http://localhost:8082) |
-| **שירות פיד (`feed-service`)** | `8083` | **`8083`** | [http://localhost:8083](http://localhost:8083) |
-| **שירות מדיה (`media-service`)** | `8084` | **`8084`** | [http://localhost:8084](http://localhost:8084) |
-| **שירות התראות (`notification-service`)** | `8085` | **`8085`** | [http://localhost:8085](http://localhost:8085) |
-| **אחסון `MinIO S3 API`** | `9000` | **`9000`** | [http://localhost:9000](http://localhost:9000) |
-| **לוח ניהול `MinIO Console`** | `9001` | **`9001`** | [http://localhost:9001](http://localhost:9001) |
-| **מסד נתונים `PostgreSQL`** | `5432` | **`5435`** | `localhost:5435` |
-| **מתווך מסרים `Apache Kafka`** | `9092` | **`9095`** | `localhost:9095` |
-| **מנוע חיפוש `Elasticsearch`** | `9200` | **`9205`** | [http://localhost:9205](http://localhost:9205) |
+| **API Gateway** | `8088` | **`8088`** | `http://localhost:8088` |
+| **User Service** | `8081` | **`8081`** | `http://localhost:8081/actuator/health` |
+| **Post Service** | `8082` | **`8082`** | `http://localhost:8082/actuator/health` |
+| **Feed Service** | `8083` | **`8083`** | `http://localhost:8083/actuator/health` |
+| **Media Service** | `8084` | **`8084`** | `http://localhost:8084/actuator/health` |
+| **Notification Service** | `8085` | **`8085`** | `http://localhost:8085/actuator/health` |
+| **AI Service** | `8086` | **`8086`** | `http://localhost:8086/health` |
+| **Kafka UI** | `8080` | **`8080`** | `http://localhost:8080` |
+| **Apache Kafka** | `9092` | **`9095`** | `localhost:9095` |
+| **PostgreSQL 16** | `5432` | **`5435`** | `localhost:5435` |
+| **Elasticsearch 8** | `9200` | **`9205`** | `http://localhost:9205` |
+| **MinIO S3 API / Console** | `9000` / `9001` | **`9000`** / **`9001`** | `http://localhost:9001` |
 
 ---
 
-## 📡 תיעוד ה-REST API וה-WebSocket
+## 📡 תיעוד ה-REST API ובדיקות Postman
 
-כל הבקשות מבוצעות דרך שער הכניסה הראשי (`http://localhost:8088` מקומית או `/api/*` דרך ה-Next.js Proxy):
+כל הבקשות נשלחות דרך ה-API Gateway בכתובת `http://localhost:8088`.
+אוסף ה-**Postman** המלא מוכן לייבוא בנתיב: [`postman/SocialFlow.postman_collection.json`](postman/SocialFlow.postman_collection.json) (כולל סקריפט אוטומטי לשמירת `{{jwt_token}}` מבקשת `Login`).
 
-### 1. אימות ומשתמשים (`/api/auth/**`, `/api/users/**`)
-- `POST /api/auth/register` — הרשמת משתמש חדש והפקת `JWT`.
-- `POST /api/auth/login` — התחברות לפי `username` או `email` וקבלת `JWT`.
-- `GET /api/users/profile/{username}` — פרטי פרופיל וסטטיסטיקות.
-- `POST /api/users/{userId}/follow` / `DELETE /api/users/{userId}/unfollow` — ניהול מעקב.
-
-### 2. פוסטים, סקרים ואינטראקציות (`/api/v1/posts/**`)
-- `POST /api/v1/posts` — יצירת פוסט חדש (טקסט, מדיה, סקר).
-- `GET /api/v1/posts/{id}` — שליפת פוסט כולל פרטי סקר.
-- `POST /api/v1/posts/{id}/poll/vote?optionId={optId}` — הצבעה בסקר חי.
-- `POST /api/v1/posts/{id}/reactions` — הוספה/עדכון Reaction.
-- `POST /api/v1/posts/{id}/comments`, `POST /api/v1/posts/{id}/repost`, `POST /api/v1/posts/{id}/bookmark`.
-
-### 3. פידים וחיפוש (`/api/v1/feed/**`, `/api/v1/search/**`)
-- `GET /api/v1/feed/for-you`, `GET /api/v1/feed/following`, `GET /api/v1/feed/trending`, `GET /api/v1/feed/trending-tags`.
-- `GET /api/v1/search?query={q}` — חיפוש טקסט מלא ב-`Elasticsearch`.
-
-### 4. שירותי בינה מלאכותית (`/api/v1/ai/**`) ו-WebSocket (`/ws`)
-- `POST /api/v1/ai/analyze`, `POST /api/v1/ai/smart-replies`, `POST /api/v1/ai/ask-feed`, `POST /api/v1/ai/chat-reply`.
-- `GET /api/v1/notifications`, `PUT /api/v1/notifications/read-all`, `WS /ws` (`SockJS / STOMP`).
+- **אימות ומשתמשים (`/api/auth/**`, `/api/v1/users/**`)**: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/v1/users/profile/{username}`, `PUT /api/v1/users/profile`, `PUT /api/v1/users/{target}/role` (`ADMIN`), `GET /api/v1/users/search?q=`, `POST/DELETE /api/v1/users/{target}/follow`.
+- **פוסטים, סקרים וסטוריז (`/api/v1/posts/**`, `/api/v1/stories/**`)**: `POST /api/v1/posts`, `GET /api/v1/posts/{id}`, `DELETE /api/v1/posts/{id}`, `POST /{id}/like`, `POST /{id}/reactions`, `POST /{id}/comments`, `POST /{id}/poll/vote`, `POST /{id}/bookmark`, `GET /api/v1/stories`.
+- **פיד וחיפוש Elasticsearch (`/api/v1/feed/**`, `/api/v1/search/**`)**: `GET /api/v1/feed/for-you`, `following`, `trending`, `trending-tags`, `GET /api/v1/search?q=`, `GET /api/v1/search/multi?q=`, `GET /api/v1/search/tag/{tag}`.
+- **מדיה S3 / MinIO (`/api/v1/media/**`)**: `POST /api/v1/media/upload-url` (Presigned PUT URL), `DELETE /api/v1/media?key=...`.
+- **התראות (`/api/v1/notifications/**`, `/ws/**`)**: `GET /api/v1/notifications`, `GET /unread-count`, `PATCH /read-all`, ו-`WS /ws`.
+- **בריאות (`Actuator`)**: `GET /actuator/health` בכל השירותים.
 
 ---
 
-## 🚀 מדריך התקנה והרצה מהירה (Docker Compose)
+## 🚀 הרצה מקומית (Docker Compose) ו-Kubernetes
 
-### דרישות מקדימות
-- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (גרסה 24 ומעלה)
-- **Git**
-
-### הרצה מקומית מלאה:
-```bash
+### Docker Compose
+```powershell
 git clone https://github.com/IDAN2468D/Social_Flow.git
 cd Social_Flow
 docker compose up -d --build
-```
-
-בדיקת מצב הקונטיינרים:
-```bash
 docker compose ps
 ```
+או באמצעות הסקריפטים [`start_docker.ps1`](start_docker.ps1) / [`stop_docker.ps1`](stop_docker.ps1).
 
-לאחר העלייה, הממשק זמין בכתובת: **[http://localhost:3000](http://localhost:3000)** (ומפנה אוטומטית ל-`/login`).
+### Kubernetes (`k8s/`)
+```bash
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/postgres.yaml -f k8s/kafka.yaml -f k8s/elasticsearch.yaml -f k8s/minio.yaml
+kubectl apply -f k8s/user-service.yaml -f k8s/post-service.yaml -f k8s/feed-service.yaml -f k8s/media-service.yaml -f k8s/notification-service.yaml -f k8s/api-gateway.yaml
+```
 
 ---
 
 ## ☁️ פריסה בענן (Render Blueprint)
 
-קובץ [`render.yaml`](render.yaml) מגדיר את כל התשתית לפריסה ב-**Render** כ-Blueprint אחד:
-
-- **Web Services (`plan: free`)**:
-  - `socialflow-frontend` (`./frontend/Dockerfile`)
-  - `socialflow-api-gateway` (`./api-gateway/Dockerfile`)
-  - `socialflow-user-service` (`./user-service/Dockerfile`)
-  - `socialflow-post-service` (`./post-service/Dockerfile`)
-  - `socialflow-feed-service` (`./feed-service/Dockerfile`)
-  - `socialflow-media-service` (`./media-service/Dockerfile`)
-  - `socialflow-notification-service` (`./notification-service/Dockerfile`)
-  - `socialflow-ai-service` (`./ai-service/Dockerfile`)
-  - `socialflow-kafka-ui` (`./kafka-ui/Dockerfile`) — ממשק ניהול ויזואלי ל-`Kafka`
-- **Private Services (`type: pserv` — תוכנית בתשלום ב-Render)**:
-  - `socialflow-kafka` (`./kafka/Dockerfile`, `plan: starter`) — מתווך `Kafka` ב-`KRaft` על פורט פנימי `9092`
-  - `socialflow-elasticsearch` (`./elasticsearch/Dockerfile`, `plan: standard`) — שרת `Elasticsearch 8.13.0` (`2GB RAM`) על פורט פנימי `9200`
-- **Managed Database**:
-  - `socialflow-postgres` (`PostgreSQL 16`, `plan: free`)
-
-> **שימו לב**: כל שירותי ה-Java (`Spring Boot 3`) מוגדרים ב-`render.yaml` עם מגבלות זיכרון מותאמות ל-`512MB` (`JAVA_TOOL_OPTIONS`) ועם חיבור אוטומטי ל-`socialflow-kafka` ול-`socialflow-elasticsearch` דרך `fromService`.
+קובץ [`render.yaml`](render.yaml) מגדיר את פריסת ה-Back End ב-**Render**:
+- **Web Services (`plan: free`)**: `socialflow-api-gateway`, `socialflow-user-service`, `socialflow-post-service`, `socialflow-feed-service`, `socialflow-media-service`, `socialflow-notification-service`, `socialflow-ai-service`, `socialflow-kafka-ui`.
+- **Private Services (`type: pserv`, בתשלום)**: `socialflow-kafka` (`plan: starter`), `socialflow-elasticsearch` (`plan: standard`).
+- **Database**: `socialflow-postgres` (`PostgreSQL 16`).
 
 ---
 
-## 🔒 אבטחה ושמירת מפתחות סודיים
+## 🧪 בדיקות יחידה, אינטגרציה ו-CI/CD
 
-1. **הגנה מלאה ב-Git**: קובץ [`.gitignore`](.gitignore) חוסם קובצי `.env` וסודות.
-2. **הגדרת מפתחות**:
-   - מקומית: שמרו את `GEMINI_API_KEY` בקובץ `.env` בתיקיית השורש.
-   - ב-`Render`: הזינו בלוח הבקרה בקבוצת `socialflow-shared-env` את `GEMINI_API_KEY` ואת פרטי ה-`S3` / `MinIO` (`AWS_S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`).
-
----
-
-## 🧪 בדיקות אינטגרציה ו-CI/CD
-
-- **בדיקות Backend (`Maven`)**:
+- **הרצת בדיקות Java (`JUnit 5 + Mockito`) בכל המודולים**:
   ```bash
   mvn test
   ```
-- **בדיקות Frontend (`TypeScript` + `Next.js Build`)**:
+- **בדיקת תקינות `docker-compose.yml`**:
   ```bash
-  cd frontend
-  npx tsc --noEmit && npm run build
+  docker compose config -q
   ```
-- **צינור אוטומטי (`.github/workflows/ci.yml`)**: מריץ קומפילציה ובדיקות אוטומטיות בכל `Push` ו-`Pull Request`.
-- **אוסף Postman**: זמין בתיקיית `postman/` (`SocialFlow.postman_collection.json`).
+- **בדיקות E2E על סביבה מקומית פועלת**:
+  ```powershell
+  ./comprehensive_test.ps1
+  ```
+- **GitHub Actions CI/CD**: קובץ [`.github/workflows/ci.yml`](.github/workflows/ci.yml) מריץ אוטומטית את `mvn test`, `pytest ai-service/tests/test_agent.py`, ובדיקת `docker compose config -q` בכל `Push` ו-`Pull Request`.
 
 ---
 
-## 📁 מבנה הקבצים והתיקיות בפרויקט
+## 📁 מבנה הפרויקט
 
 ```text
 Social_Flow/
-├── .github/workflows/ci.yml       # צינור CI/CD ב-GitHub Actions
-├── .gitignore                     # חסימת קבצים רגישים, target ו-node_modules
-├── README.md                      # תיעוד הפרויקט המלא
-├── docker-compose.yml             # תזמור הקונטיינרים להרצה מקומית
-├── render.yaml                    # Blueprint מלא לפריסה בענן Render
+├── .github/workflows/ci.yml       # CI/CD: Maven tests, AI pytest, Docker Compose config
+├── .agents/                       # PRD.md, SPEC.md, PLAN.md (Pure Back End Spec)
+├── docker-compose.yml             # תזמור שירותי Back End ותשתיות מקומית
+├── render.yaml                    # Render Cloud Blueprint
 ├── init-db.sql                    # אתחול סכמות PostgreSQL
 ├── pom.xml                        # Maven Multi-Module ראשי
 │
-├── api-gateway/                   # שער כניסה (Spring Cloud Gateway - 8088)
-├── user-service/                  # משתמשים ואימות JWT (8081)
-├── post-service/                  # פוסטים, סקרים, תגובות וריאקשנים (8082)
-├── feed-service/                  # פידים וחיפוש Elasticsearch (8083)
-├── media-service/                 # העלאת מדיה ו-S3 / MinIO (8084)
-├── notification-service/          # התראות ו-WebSocket STOMP (8085)
-├── ai-service/                    # שירות AI (FastAPI + Gemini 3.5 Flash-Lite - 8086)
+├── api-gateway/                   # Spring Cloud Gateway (:8088) + JwtAuthFilter + GatewayExceptionHandler
+├── user-service/                  # משתמשים, JWT + Cookies, Roles USER/ADMIN (:8081)
+├── post-service/                  # פוסטים, סקרים, תגובות, ריאקשנים, סטוריז (:8082)
+├── feed-service/                  # פידים וחיפוש Elasticsearch 8 + Kafka Consumer (:8083)
+├── media-service/                 # שירות Presigned URLs ומחיקה מול MinIO / S3 (:8084)
+├── notification-service/          # התראות, WebSocket STOMP + Kafka Consumer (:8085)
+├── ai-service/                    # שירות עזר Python FastAPI + Gemini (:8086)
 │
-├── kafka/Dockerfile               # תמונת Apache Kafka (KRaft) לפריסה ב-Render
-├── kafka-ui/Dockerfile            # תמונת Kafka UI לצפייה באירועים ו-Topics
-├── elasticsearch/Dockerfile       # תמונת Elasticsearch 8.13.0 לפריסה ב-Render
-├── k8s/                           # מניפסטים של Kubernetes
-│
-├── mcp-server/                    # שרת Model Context Protocol לסוכני AI
-├── frontend/                      # ממשק Next.js 15 (Dark Liquid Glass 4.0 Pro)
-│   ├── app/                       # App Router: /, /login, /register, /stories, /bookmarks, /community, /profile
-│   ├── components/                # רכיבי UI, פיד, סקרים, צ'אט וסרגלי ניווט
-│   ├── lib/                       # כלי עזר לאימות ו-API
-│   ├── store/                     # ניהול State גלובלי עם Zustand
-│   └── Dockerfile                 # בניית Frontend לפריסה
-└── postman/                       # אוסף קריאות API לבדיקות
+├── kafka/Dockerfile               # תמונת Kafka (KRaft) לענן
+├── kafka-ui/Dockerfile            # תמונת Kafka UI לענן
+├── elasticsearch/Dockerfile       # תמונת Elasticsearch 8.13.0 לענן
+├── k8s/                           # מניפסטים של Kubernetes לכל המיקרו-שירותים והתשתיות
+├── mcp-server/                    # שרת MCP לחיבור כלי AI ל-API
+├── postman/                       # אוסף Postman מלא (SocialFlow.postman_collection.json)
+└── comprehensive_test.ps1         # בדיקת E2E מקומית מול ה-Gateway והתשתיות
 ```
 
 ---
 
 ## 👨‍💻 יוצר ורישיון
 
-פותח על ידי **[עידן קזם (Idan Kazam)](https://github.com/IDAN2468D)**.
-
-פרויקט זה מופץ תחת רישיון **MIT License** — חופשי לשימוש, למידה, שיתוף והרחבה.
+פותח על ידי **[עידן קזם (Idan Kazam)](https://github.com/IDAN2468D)** במסגרת פרויקט 1 בקורס **Back End AI: Hi-Tech Gateway**.
+מופץ תחת רישיון **MIT License**.

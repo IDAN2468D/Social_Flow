@@ -46,28 +46,7 @@ envVarGroups:
         sync: false
 
 services:
-  # 1. Next.js 15 Frontend Web App (Public Entry Point)
-  - type: web
-    name: socialflow-frontend
-    runtime: docker
-    dockerfilePath: ./frontend/Dockerfile
-    dockerContext: ./frontend
-    plan: free
-    autoDeploy: true
-    healthCheckPath: /
-    envVars:
-      - key: API_GATEWAY_HOSTPORT
-        fromService:
-          type: web
-          name: socialflow-api-gateway
-          property: hostport
-      - key: API_GATEWAY_HOST
-        fromService:
-          type: web
-          name: socialflow-api-gateway
-          property: host
-
-  # 2. Spring Cloud API Gateway
+  # 1. Spring Cloud API Gateway (Public Entry Point)
   - type: web
     name: socialflow-api-gateway
     runtime: docker

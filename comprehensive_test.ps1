@@ -31,8 +31,7 @@ $expectedContainers = @(
     "socialflow-feed-service",
     "socialflow-media-service",
     "socialflow-notification-service",
-    "socialflow-api-gateway",
-    "socialflow-frontend"
+    "socialflow-api-gateway"
 )
 
 $runningContainers = docker ps --format "{{.Names}}"
@@ -262,15 +261,6 @@ try {
 
 } catch {
     Add-TestResult "Notification Service" "Pipeline Execution" $false $_.Exception.Message
-}
-
-# 11. Frontend Web Server Check
-Write-Host "`n--- 11. Frontend Nginx Web Server ---" -ForegroundColor Cyan
-try {
-    $feResp = Invoke-WebRequest -Uri "http://localhost:3000" -Method Get -UseBasicParsing
-    Add-TestResult "Frontend" "Nginx Web Client" ($feResp.StatusCode -eq 200) "HTTP 200 OK, Size: $($feResp.RawContentLength) bytes"
-} catch {
-    Add-TestResult "Frontend" "Nginx Web Client" $false $_.Exception.Message
 }
 
 # Summary Report
