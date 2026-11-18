@@ -31,7 +31,10 @@ public class GatewayApplication {
             String hostKey = prefix + "_HOST";
             String existingUri = System.getenv(uriKey);
             String host = System.getenv(hostKey);
-            if ((existingUri == null || existingUri.isBlank()) && System.getProperty(uriKey) == null) {
+            boolean shouldOverride = (existingUri == null || existingUri.isBlank())
+                    || (onRender && isLocalOrDockerUri(existingUri));
+
+            if (shouldOverride && System.getProperty(uriKey) == null) {
                 String resolvedHost = null;
                 if (host != null && !host.isBlank()) {
                     resolvedHost = host.trim().replaceFirst("^https?://", "").replaceAll("/+$", "");
@@ -42,12 +45,17 @@ public class GatewayApplication {
                 if (resolvedHost != null) {
                     System.setProperty(uriKey, "https://" + resolvedHost);
                     if ("NOTIFICATION_SERVICE".equals(prefix)
-                            && System.getenv("NOTIFICATION_SERVICE_WS_URI") == null
                             && System.getProperty("NOTIFICATION_SERVICE_WS_URI") == null) {
                         System.setProperty("NOTIFICATION_SERVICE_WS_URI", "wss://" + resolvedHost);
                     }
                 }
             }
         }
+    }
+
+    private static boolean isLocalOrDockerUri(String uri) {
+        String withoutScheme = uri.trim().replaceFirst("^[a-zA-Z]+://", "");
+        String hostPart = withoutScheme.split("[/:]")[0].toLowerCase();
+        return hostPart.isEmpty() || "localhost".equals(hostPart) || "127.0.0.1".equals(hostPart) || !hostPart.contains(".");
     }
 }
