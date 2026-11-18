@@ -1,12 +1,22 @@
 {
   "info": {
-    "name": "SocialFlow API Collection",
-    "description": "Full REST API Collection for SocialFlow Microservices (Project 1)",
+    "name": "SocialFlow API Collection (Pure Java Microservices Back End)",
+    "description": "Full REST API Collection for SocialFlow — Project 1: Java Microservices Distributed Social Network (API Gateway :8088, Auth/JWT + HttpOnly Cookies, Roles, Posts/Polls/Reactions, Elasticsearch Search, MinIO S3 Media, Notifications, Kafka & Actuator Health).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8088"
+    },
+    {
+      "key": "jwt_token",
+      "value": ""
+    }
+  ],
   "item": [
     {
-      "name": "Authentication & Users",
+      "name": "1. Authentication & Users (user-service)",
       "item": [
         {
           "name": "Register User",
@@ -17,19 +27,27 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"idan\",\n  \"email\": \"idan@example.com\",\n  \"password\": \"Secret123!\"\n}"
+              "raw": "{\n  \"username\": \"idan\",\n  \"email\": \"idan@example.com\",\n  \"password\": \"Secret123!\",\n  \"fullName\": \"Idan Kazam\"\n}"
             },
-            "url": {
-              "raw": "http://localhost:8088/api/auth/register",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8088",
-              "path": ["api", "auth", "register"]
-            }
+            "url": "{{baseUrl}}/api/auth/register"
           }
         },
         {
-          "name": "Login",
+          "name": "Login (JWT + HttpOnly Cookie)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.token) { pm.collectionVariables.set('jwt_token', data.token); }",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -39,19 +57,77 @@
               "mode": "raw",
               "raw": "{\n  \"username\": \"idan\",\n  \"password\": \"Secret123!\"\n}"
             },
-            "url": {
-              "raw": "http://localhost:8088/api/auth/login",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8088",
-              "path": ["api", "auth", "login"]
-            }
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/users/profile/idan"
+          }
+        },
+        {
+          "name": "Update Profile (Bio & S3 Profile Image)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Idan Kazam\",\n  \"bio\": \"Senior Java & Distributed Systems Architect\",\n  \"profileImageUrl\": \"http://localhost:9000/socialflow-media/uploads/1/avatar.png\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/users/profile"
+          }
+        },
+        {
+          "name": "Search Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/users/search?q=idan"
+          }
+        },
+        {
+          "name": "Follow User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/noa/follow"
+          }
+        },
+        {
+          "name": "Unfollow User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/users/noa/follow"
+          }
+        },
+        {
+          "name": "Update User Role (ADMIN only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/users/noa/role"
           }
         }
       ]
     },
     {
-      "name": "Posts & Interactions",
+      "name": "2. Posts, Polls, Reactions & Stories (post-service)",
       "item": [
         {
           "name": "Create Post",
@@ -63,15 +139,16 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"Hello SocialFlow with Google Gemini! #AI #Microservices\"\n}"
+              "raw": "{\n  \"content\": \"Hello SocialFlow Event-Driven Microservices! #Java #Kafka #Elasticsearch\"\n}"
             },
-            "url": {
-              "raw": "http://localhost:8088/api/v1/posts",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8088",
-              "path": ["api", "v1", "posts"]
-            }
+            "url": "{{baseUrl}}/api/v1/posts"
+          }
+        },
+        {
+          "name": "Get Post by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/posts/1"
           }
         },
         {
@@ -81,47 +158,210 @@
             "header": [
               { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
             ],
-            "url": {
-              "raw": "http://localhost:8088/api/v1/posts/1/like",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8088",
-              "path": ["api", "v1", "posts", "1", "like"]
-            }
+            "url": "{{baseUrl}}/api/v1/posts/1/like"
+          }
+        },
+        {
+          "name": "Add Reaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reactionType\": \"INSIGHTFUL\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/posts/1/reactions"
+          }
+        },
+        {
+          "name": "Add Comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Great microservices architecture!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/posts/1/comments"
+          }
+        },
+        {
+          "name": "Vote in Poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/posts/1/poll/vote?optionId=1"
+          }
+        },
+        {
+          "name": "Toggle Bookmark",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/posts/1/bookmark"
+          }
+        },
+        {
+          "name": "Delete Post (Owner or ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/posts/1"
+          }
+        },
+        {
+          "name": "Get Active Stories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories"
           }
         }
       ]
     },
     {
-      "name": "Feeds & Search",
+      "name": "3. Feeds & Elasticsearch Search (feed-service)",
       "item": [
         {
           "name": "For You Feed",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "http://localhost:8088/api/v1/feed/for-you",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8088",
-              "path": ["api", "v1", "feed", "for-you"]
-            }
+            "url": "{{baseUrl}}/api/v1/feed/for-you?page=0&size=20"
           }
         },
         {
-          "name": "Elasticsearch Search",
+          "name": "Following Feed",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "http://localhost:8088/api/v1/search?q=AI",
-              "protocol": "http",
-              "host": ["localhost"],
-              "port": "8088",
-              "path": ["api", "v1", "search"],
-              "query": [{ "key": "q", "value": "AI" }]
-            }
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/feed/following?page=0&size=20"
+          }
+        },
+        {
+          "name": "Trending Feed",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/feed/trending?page=0&size=20"
+          }
+        },
+        {
+          "name": "Trending Hashtags",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/feed/trending-tags"
+          }
+        },
+        {
+          "name": "Elasticsearch Full-Text Search",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/search?q=Kafka&page=0&size=10"
+          }
+        },
+        {
+          "name": "Elasticsearch Multi Search",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/search/multi?q=Kafka&page=0&size=10"
+          }
+        },
+        {
+          "name": "Elasticsearch Search by Hashtag",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/search/tag/Java?page=0&size=10"
           }
         }
+      ]
+    },
+    {
+      "name": "4. Media S3 / MinIO Presigned URLs (media-service)",
+      "item": [
+        {
+          "name": "Generate Presigned Upload URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"avatar.png\",\n  \"contentType\": \"image/png\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/media/upload-url"
+          }
+        },
+        {
+          "name": "Delete S3 Media Object (Owner or ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/media?key=uploads/1/avatar.png"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Notifications (notification-service)",
+      "item": [
+        {
+          "name": "Get User Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications"
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/unread-count"
+          }
+        },
+        {
+          "name": "Mark All Notifications Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/read-all"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Actuator Health & Diagnostics",
+      "item": [
+        { "name": "API Gateway Health (:8088)", "request": { "method": "GET", "url": "http://localhost:8088/actuator/health" } },
+        { "name": "User Service Health (:8081)", "request": { "method": "GET", "url": "http://localhost:8081/actuator/health" } },
+        { "name": "Post Service Health (:8082)", "request": { "method": "GET", "url": "http://localhost:8082/actuator/health" } },
+        { "name": "Feed Service Health (:8083)", "request": { "method": "GET", "url": "http://localhost:8083/actuator/health" } },
+        { "name": "Media Service Health (:8084)", "request": { "method": "GET", "url": "http://localhost:8084/actuator/health" } },
+        { "name": "Notification Service Health (:8085)", "request": { "method": "GET", "url": "http://localhost:8085/actuator/health" } },
+        { "name": "AI Service Health (via Gateway)", "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/ai/health" } }
       ]
     }
   ]

@@ -228,7 +228,7 @@ services:
       - socialflow-net
 
   # =========================================================================
-  # 3. ממשק משתמש (Frontend Web App)
+  # 3. שירות בינה מלאכותית (AI Microservice)
   # =========================================================================
   ai-service:
     build:
@@ -244,20 +244,6 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     depends_on:
       - kafka
-    networks:
-      - socialflow-net
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: socialflow-frontend
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - API_GATEWAY_URL=http://api-gateway:8088
-    depends_on:
-      - api-gateway
     networks:
       - socialflow-net
 
