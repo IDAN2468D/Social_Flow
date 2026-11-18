@@ -23,19 +23,29 @@ public class GatewayApplication {
     }
 
     static void resolveRenderServiceUris() {
+        boolean onRender = "true".equalsIgnoreCase(System.getenv("RENDER"))
+                || System.getenv("RENDER_SERVICE_ID") != null;
+
         for (String prefix : SERVICE_PREFIXES) {
             String uriKey = prefix + "_URI";
             String hostKey = prefix + "_HOST";
             String existingUri = System.getenv(uriKey);
             String host = System.getenv(hostKey);
-            if ((existingUri == null || existingUri.isBlank()) && System.getProperty(uriKey) == null
-                    && host != null && !host.isBlank()) {
-                String cleanHost = host.trim().replaceFirst("^https?://", "").replaceAll("/+$", "");
-                System.setProperty(uriKey, "https://" + cleanHost);
-                if ("NOTIFICATION_SERVICE".equals(prefix)
-                        && System.getenv("NOTIFICATION_SERVICE_WS_URI") == null
-                        && System.getProperty("NOTIFICATION_SERVICE_WS_URI") == null) {
-                    System.setProperty("NOTIFICATION_SERVICE_WS_URI", "wss://" + cleanHost);
+            if ((existingUri == null || existingUri.isBlank()) && System.getProperty(uriKey) == null) {
+                String resolvedHost = null;
+                if (host != null && !host.isBlank()) {
+                    resolvedHost = host.trim().replaceFirst("^https?://", "").replaceAll("/+$", "");
+                } else if (onRender) {
+                    resolvedHost = "socialflow-" + prefix.toLowerCase().replace('_', '-') + ".onrender.com";
+                }
+
+                if (resolvedHost != null) {
+                    System.setProperty(uriKey, "https://" + resolvedHost);
+                    if ("NOTIFICATION_SERVICE".equals(prefix)
+                            && System.getenv("NOTIFICATION_SERVICE_WS_URI") == null
+                            && System.getProperty("NOTIFICATION_SERVICE_WS_URI") == null) {
+                        System.setProperty("NOTIFICATION_SERVICE_WS_URI", "wss://" + resolvedHost);
+                    }
                 }
             }
         }
