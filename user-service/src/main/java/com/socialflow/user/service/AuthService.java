@@ -59,7 +59,9 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByUsername(request.getUsername())
+        String identifier = request.getUsername() != null ? request.getUsername().trim() : "";
+        User user = userRepository.findByUsername(identifier)
+                .or(() -> userRepository.findByEmail(identifier))
                 .orElseThrow(() -> new IllegalArgumentException("שם משתמש או סיסמה שגויים"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {

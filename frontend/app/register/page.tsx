@@ -291,20 +291,24 @@ export default function RegisterPage() {
             {errorMsg && (
               <div
                 role="alert"
-                className="flex items-start gap-2.5 rounded-2xl border border-rose-500/35 bg-rose-500/12 px-4 py-3 text-sm text-rose-200"
+                className="flex items-start gap-2.5 overflow-hidden rounded-2xl border border-rose-500/35 bg-rose-500/12 px-4 py-3 text-sm text-rose-200"
               >
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
-                <span>{errorMsg}</span>
+                <span dir="auto" className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
+                  {errorMsg}
+                </span>
               </div>
             )}
 
             {successMsg && (
               <div
                 role="status"
-                className="flex items-start gap-2.5 rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-3 text-sm text-emerald-200"
+                className="flex items-start gap-2.5 overflow-hidden rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-3 text-sm text-emerald-200"
               >
                 <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
-                <span>{successMsg}</span>
+                <span dir="auto" className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
+                  {successMsg}
+                </span>
               </div>
             )}
 

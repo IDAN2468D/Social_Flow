@@ -268,20 +268,24 @@ export default function LoginPage() {
             {errorMsg && (
               <div
                 role="alert"
-                className="flex items-start gap-2.5 rounded-2xl border border-rose-500/35 bg-rose-500/12 px-4 py-3 text-sm text-rose-200"
+                className="flex items-start gap-2.5 overflow-hidden rounded-2xl border border-rose-500/35 bg-rose-500/12 px-4 py-3 text-sm text-rose-200"
               >
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
-                <span>{errorMsg}</span>
+                <span dir="auto" className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
+                  {errorMsg}
+                </span>
               </div>
             )}
 
             {successMsg && (
               <div
                 role="status"
-                className="flex items-start gap-2.5 rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-3 text-sm text-emerald-200"
+                className="flex items-start gap-2.5 overflow-hidden rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-3 text-sm text-emerald-200"
               >
                 <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
-                <span>{successMsg}</span>
+                <span dir="auto" className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
+                  {successMsg}
+                </span>
               </div>
             )}
 
@@ -291,7 +295,7 @@ export default function LoginPage() {
                   htmlFor="login-username"
                   className="block text-xs font-semibold text-slate-300"
                 >
-                  שם משתמש
+                  שם משתמש או אימייל
                 </label>
                 <div className="relative">
                   <User className="pointer-events-none absolute top-1/2 -translate-y-1/2 start-3.5 h-4 w-4 text-slate-400" />
@@ -302,7 +306,7 @@ export default function LoginPage() {
                     dir="auto"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="לדוגמה: idankzm"
+                    placeholder="לדוגמה: idankzm או name@example.com"
                     className="w-full rounded-2xl border border-white/10 bg-[#090A0F]/80 ps-10 pe-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-500/70 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                   />
                 </div>
