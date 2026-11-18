@@ -25,7 +25,7 @@ spring:
         temp.use_jdbc_metadata_defaults: false
 
   elasticsearch:
-    uris: ${SPRING_ELASTICSEARCH_URIS:http://localhost:9205}
+    uris: ${SPRING_ELASTICSEARCH_URIS:http://${SPRING_ELASTICSEARCH_HOSTPORT:localhost:9205}}
 
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9095}
