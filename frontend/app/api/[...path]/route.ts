@@ -21,6 +21,9 @@ function getApiGatewayCandidates(): string[] {
   if (process.env.API_GATEWAY_HOST) {
     candidates.push(normalizeBaseUrl(process.env.API_GATEWAY_HOST, 'https'));
   }
+  if (process.env.RENDER === 'true') {
+    candidates.push('https://socialflow-api-gateway.onrender.com');
+  }
   if (candidates.length === 0) {
     candidates.push('http://localhost:8088');
   }
