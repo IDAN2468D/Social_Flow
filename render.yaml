@@ -27,14 +27,9 @@ envVarGroups:
       - key: GEMINI_MODEL
         value: gemini-3.5-flash-lite
 
-      # External Kafka (e.g. Upstash Kafka / Redpanda / Confluent Cloud)
-      # Flip KAFKA_AUTO_STARTUP to "true" once SPRING_KAFKA_BOOTSTRAP_SERVERS is configured
-      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
-        sync: false
-      - key: KAFKA_BOOTSTRAP_SERVERS
-        sync: false
+      # Kafka enabled via socialflow-kafka Private Service (flip to "false" if deploying without pserv)
       - key: KAFKA_AUTO_STARTUP
-        value: "false"
+        value: "true"
 
       # External Elasticsearch 8 (e.g. Elastic Cloud)
       - key: SPRING_ELASTICSEARCH_URIS
@@ -159,6 +154,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -191,6 +191,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -223,6 +228,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -267,6 +277,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -299,8 +314,39 @@ services:
     healthCheckPath: /health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: FEED_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-feed-service
+          property: hostport
+
+  # 9. Apache Kafka Broker (KRaft Single-Node Private Service — requires paid plan on Render)
+  - type: pserv
+    name: socialflow-kafka
+    runtime: docker
+    dockerfilePath: ./kafka/Dockerfile
+    dockerContext: ./kafka
+    plan: starter
+    autoDeploy: true
+
+  # 10. Kafka UI (Visual Event & Topic Explorer)
+  - type: web
+    name: socialflow-kafka-ui
+    runtime: docker
+    dockerfilePath: ./kafka-ui/Dockerfile
+    dockerContext: ./kafka-ui
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: KAFKA_CLUSTERS_0_NAME
+        value: socialflow-cluster
+      - key: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
           property: hostport

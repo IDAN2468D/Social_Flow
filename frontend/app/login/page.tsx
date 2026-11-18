@@ -1,51 +1,68 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   AlertCircle,
-  ArrowRight,
+  ArrowLeft,
   CheckCircle2,
-  Cpu,
   Eye,
   EyeOff,
   Lock,
   Radio,
-  Search,
+  ShieldCheck,
   Sparkles,
   User,
   Zap,
 } from 'lucide-react';
-import {
-  BadgePill,
-  BentoTile,
-  GlassCard,
-  GradientButton,
-} from '@/components/ui/GlassPrimitives';
+import { isJwtExpired } from '@/lib/auth';
 
 interface DemoAccount {
+  label: string;
   username: string;
   password: string;
   role: string;
 }
 
 const DEMO_ACCOUNTS: DemoAccount[] = [
-  { username: 'idan', password: 'password123', role: 'Architect' },
-  { username: 'testuser99', password: 'password123', role: 'Creator' },
-  { username: 'david', password: 'password123', role: 'Developer' },
+  {
+    label: 'חשבון יוצר (עידן)',
+    username: 'idan',
+    password: 'password123',
+    role: 'AI Architect',
+  },
+  {
+    label: 'חשבון יוצרת (מאיה)',
+    username: 'maya',
+    password: 'password123',
+    role: 'Product Lead',
+  },
 ];
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('socialflow_user');
+      if (raw) {
+        const parsed = JSON.parse(raw) as { token?: string };
+        if (parsed?.token && !isJwtExpired(parsed.token)) {
+          router.replace('/');
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [router]);
 
   const handleQuickFill = (account: DemoAccount) => {
     setUsername(account.username);
@@ -58,57 +75,62 @@ export default function LoginPage() {
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    const trimmedUsername = username.trim();
-    if (!trimmedUsername || !password) {
-      setErrorMsg('נא למלא שם משתמש וסיסמה / Please enter username and password.');
+    const trimmedUser = username.trim();
+    if (!trimmedUser || !password) {
+      setErrorMsg('אנא הזן שם משתמש וסיסמה כדי להתחבר.');
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
-
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
-          username: trimmedUsername,
+          username: trimmedUser,
           password,
         }),
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        const fallbackMsg =
-          res.status === 401
-            ? 'שם משתמש או סיסמה שגויים'
-            : `שגיאת התחברות מהשרת (${res.status})`;
-        throw new Error(errData?.message || errData?.error || fallbackMsg);
+        const errText = await res.text().catch(() => '');
+        let parsedMsg = errText;
+        try {
+          const parsedJson = JSON.parse(errText);
+          parsedMsg = parsedJson.message || parsedJson.error || errText;
+        } catch {
+          // Keep raw text
+        }
+        throw new Error(parsedMsg || `ההתחברות נכשלה (${res.status})`);
       }
 
       const data = await res.json().catch(() => ({}));
+      const resolvedUsername = data.username || trimmedUser;
+      const userObj = {
+        userId: data.userId ?? 1,
+        username: resolvedUsername,
+        fullName: data.fullName || resolvedUsername,
+        email: data.email || `${resolvedUsername}@socialflow.ai`,
+        avatarUrl:
+          data.avatarUrl ||
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(resolvedUsername)}`,
+        token: data.token || '',
+      };
 
       try {
-        const userObj = {
-          userId: data.userId ?? 1,
-          username: data.username || trimmedUsername,
-          fullName: data.fullName || data.username || trimmedUsername,
-          email: data.email || '',
-          token: data.token || '',
-        };
         localStorage.setItem('socialflow_user', JSON.stringify(userObj));
       } catch {
         // Ignore storage error in restricted browser contexts
       }
 
-      setSuccessMsg('התחברת בהצלחה! מעביר לפיד...');
-      router.push('/');
+      setSuccessMsg('התחברת בהצלחה! נכנסים לפיד SocialFlow...');
+      router.replace('/');
       router.refresh();
     } catch (err) {
       setErrorMsg(
         err instanceof Error
           ? err.message
-          : 'אירעה שגיאה בעת ההתחברות. ודא ששירותי המערכת פועלים.'
+          : 'אירעה שגיאה בעת ההתחברות. אנא נסה שוב.'
       );
     } finally {
       setIsSubmitting(false);
@@ -116,178 +138,160 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#090A0F] text-[#F8FAFC] flex items-center justify-center p-4 sm:p-6 lg:p-10">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        {/* Left Split-Screen Showcase Panel */}
+    <div
+      dir="rtl"
+      className="relative min-h-screen w-full overflow-hidden bg-[#090A0F] text-[#F8FAFC] flex items-center justify-center p-4 sm:p-6 lg:p-10"
+    >
+      {/* Ambient Liquid Glass Glow Orbs */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-40 -end-32 h-[420px] w-[420px] rounded-full bg-[#6366F1]/20 blur-[120px]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-40 -start-32 h-[440px] w-[440px] rounded-full bg-[#8B5CF6]/20 blur-[130px]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[320px] w-[320px] rounded-full bg-cyan-500/10 blur-[140px]"
+      />
+
+      <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        {/* Showcase Panel */}
         <motion.aside
-          initial={{ opacity: 0, x: 18 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
-          className="lg:col-span-6 hidden lg:flex flex-col justify-between rounded-3xl relative overflow-hidden p-8 bg-[rgba(18,21,33,0.72)] backdrop-blur-xl border border-white/10 shadow-[0_24px_60px_-15px_rgba(0,0,0,0.65)]"
+          className="lg:col-span-5 hidden lg:flex flex-col justify-between rounded-[28px] relative overflow-hidden p-8 bg-[#121521]/72 backdrop-blur-2xl border border-white/10 shadow-[0_28px_70px_-15px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.1)]"
         >
-          {/* Ambient Glow Layers */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -top-24 -end-20 h-72 w-72 rounded-full bg-indigo-500/25 blur-3xl"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -bottom-24 -start-20 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl"
-          />
-
-          <div className="relative z-10 space-y-6">
-            <div className="flex items-center justify-between">
-              <Link href="/" className="inline-flex items-center gap-3 group">
-                <span className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white shadow-[0_0_24px_rgba(99,102,241,0.5)]">
-                  <Zap className="h-5 w-5" />
-                </span>
-                <div>
-                  <span className="text-xl font-extrabold tracking-tight text-white">
-                    Social<span className="text-indigo-400">Flow</span>
-                  </span>
-                  <p className="text-[11px] font-mono text-slate-400">
-                    OBSIDIAN LIQUID GLASS 2026
-                  </p>
-                </div>
-              </Link>
-
-              <BadgePill variant="emerald" pulseDot size="sm">
-                Gateway :8088 Online
-              </BadgePill>
+          <div className="space-y-7">
+            <div className="flex items-center gap-3.5">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white shadow-[0_0_28px_rgba(99,102,241,0.55)]">
+                <Zap className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-white">
+                  Social<span className="text-indigo-400">Flow</span>
+                </h1>
+                <p className="text-[11px] font-mono tracking-wider text-slate-400">
+                  DARK LIQUID GLASS 4.0 PRO
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-3 pt-4">
-              <BadgePill variant="indigo" icon={<Sparkles className="h-3 w-3" />}>
-                AI-Native Microservices Network
-              </BadgePill>
-              <h2 className="text-3xl font-extrabold leading-tight text-slate-50">
-                שיחות בזמן אמת, חיפוש חכם וסוכני AI אוטונומיים.
+            <div className="space-y-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-300" />
+                סביבת קהילה ו-AI בזמן אמת
+              </span>
+              <h2 className="text-2xl font-extrabold leading-snug text-white">
+                מתחברים לפיד חכם, סטוריז חיים ושיח מבוסס Kafka &amp; AI.
               </h2>
-              <p dir="auto" className="text-sm text-slate-300 leading-relaxed max-w-md">
-                Connect across Spring Boot 3 microservices, Apache Kafka streams, Elasticsearch
-                instant discovery, and LangGraph RAG intelligence.
+              <p className="text-sm leading-relaxed text-slate-300/90">
+                כל פרסום, תגובה והתראה מסונכרנים בזמן אמת מול שרת Spring Boot,
+                מועשרים בתובנות Gemini RAG ונשמרים במאגר הענן.
               </p>
             </div>
 
-            {/* Mini Bento Feature Grid */}
-            <div className="grid grid-cols-2 gap-3.5 pt-2">
-              <BentoTile
-                label="Real-Time Stream"
-                value="STOMP WS"
-                sublabel="התראות וריאקציות ב-0ms"
-                accent="emerald"
-                icon={<Radio className="h-4 w-4" />}
-              />
-              <BentoTile
-                label="Instant Search"
-                value="Elastic 8"
-                sublabel="חיפוש פוסטים ותגיות Ctrl+K"
-                accent="indigo"
-                icon={<Search className="h-4 w-4" />}
-              />
-              <BentoTile
-                label="Autonomous AI"
-                value="LangGraph"
-                sublabel="מחקר טרנדים ומנוע RAG"
-                accent="violet"
-                icon={<Cpu className="h-4 w-4" />}
-              />
-              <BentoTile
-                label="Zero-Trust Auth"
-                value="HttpOnly JWT"
-                sublabel="אימות מאובטח מבוסס Cookies"
-                accent="cyan"
-                icon={<Lock className="h-4 w-4" />}
-              />
+            <div className="space-y-2.5 pt-2">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <Radio className="h-4 w-4 text-emerald-400 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-bold text-slate-100">אירועים חיים ב-Kafka</p>
+                  <p className="text-slate-400">עדכונים מיידיים בפיד ובהתראות</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <ShieldCheck className="h-4 w-4 text-indigo-400 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-bold text-slate-100">אבטחת JWT מלאה</p>
+                  <p className="text-slate-400">גישה מאובטחת לפרופיל, לסטוריז ולסימניות</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="relative z-10 pt-6 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
-            <span>תמיכה מלאה בעברית ואנגלית (RTL / LTR)</span>
-            <span className="font-mono text-indigo-300">v2.0 • Next.js 15</span>
+          <div className="pt-6 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>AUTH GATEWAY</span>
+            <span className="inline-flex items-center gap-1.5 text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              SYSTEM ONLINE
+            </span>
           </div>
         </motion.aside>
 
-        {/* Right Split-Screen Auth Form Panel */}
+        {/* Login Form Card */}
         <motion.main
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="lg:col-span-6 flex flex-col justify-center"
+          transition={{ duration: 0.35, delay: 0.05 }}
+          className="lg:col-span-7 rounded-[28px] p-6 sm:p-9 bg-[#121521]/82 backdrop-blur-2xl border border-white/12 shadow-[0_28px_70px_-15px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.1)] flex flex-col justify-between"
         >
-          <GlassCard padding="lg" glow="indigo" className="rounded-3xl space-y-6">
-            {/* Mobile Brand Header + Back Navigation */}
-            <div className="flex items-center justify-between gap-3">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 hover:border-indigo-500/40 px-3.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition-all"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-                <span>חזרה לפיד</span>
-              </Link>
-
-              <div className="flex items-center gap-2 lg:hidden">
-                <span className="h-8 w-8 rounded-xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white">
-                  <Zap className="h-4 w-4" />
-                </span>
-                <span className="font-extrabold text-base text-white">
-                  Social<span className="text-indigo-400">Flow</span>
-                </span>
+          <div className="space-y-6">
+            {/* Mobile Brand Header */}
+            <div className="flex items-center justify-between lg:hidden">
+              <div className="flex items-center gap-2.5">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white shadow-[0_0_20px_rgba(99,102,241,0.5)]">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-lg font-extrabold text-white">
+                    Social<span className="text-indigo-400">Flow</span>
+                  </span>
+                  <p className="text-[10px] font-mono text-slate-400">LIQUID GLASS 4.0 PRO</p>
+                </div>
               </div>
+            </div>
 
-              <BadgePill variant="indigo" size="sm">
-                כניסה למערכת
-              </BadgePill>
+            {/* Segmented Auth Mode Switcher */}
+            <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-[#090A0F]/75 p-1.5">
+              <div className="flex items-center justify-center rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] py-2.5 text-sm font-bold text-white shadow-[0_0_24px_rgba(99,102,241,0.38)]">
+                התחברות
+              </div>
+              <Link
+                href="/register"
+                className="flex items-center justify-center rounded-xl py-2.5 text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/[0.04] transition-all no-underline"
+              >
+                הרשמה
+              </Link>
             </div>
 
             <div className="space-y-1.5">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-50 tracking-tight">
-                ברוך שובך 👋
-              </h1>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                ברוך הבא חזרה
+              </h2>
               <p className="text-sm text-slate-400">
-                התחבר לחשבונך כדי לפרסם פוסטים, להגיב ולנהל את הפיד שלך.
+                הזן את פרטי החשבון שלך כדי להיכנס לפיד SocialFlow.
               </p>
             </div>
 
-            {/* Alert Banner */}
-            <AnimatePresence mode="wait">
-              {errorMsg && (
-                <motion.div
-                  key="login-error"
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  role="alert"
-                  className="flex items-start gap-2.5 rounded-2xl bg-rose-500/15 border border-rose-500/35 px-4 py-3 text-xs sm:text-sm text-rose-200"
-                >
-                  <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
-                  <span dir="auto">{errorMsg}</span>
-                </motion.div>
-              )}
+            {errorMsg && (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-2xl border border-rose-500/35 bg-rose-500/12 px-4 py-3 text-sm text-rose-200"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
-              {successMsg && (
-                <motion.div
-                  key="login-success"
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  role="status"
-                  className="flex items-start gap-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 px-4 py-3 text-xs sm:text-sm text-emerald-200"
-                >
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>{successMsg}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {successMsg && (
+              <div
+                role="status"
+                className="flex items-start gap-2.5 rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-3 text-sm text-emerald-200"
+              >
+                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                <span>{successMsg}</span>
+              </div>
+            )}
 
-            {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
+              <div className="space-y-1.5">
                 <label
                   htmlFor="login-username"
-                  className="block text-xs font-semibold text-slate-300 mb-1.5"
+                  className="block text-xs font-semibold text-slate-300"
                 >
-                  שם משתמש / Username
+                  שם משתמש
                 </label>
                 <div className="relative">
                   <User className="pointer-events-none absolute top-1/2 -translate-y-1/2 start-3.5 h-4 w-4 text-slate-400" />
@@ -295,23 +299,21 @@ export default function LoginPage() {
                     id="login-username"
                     type="text"
                     autoComplete="username"
-                    autoFocus
-                    required
-                    dir="ltr"
+                    dir="auto"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="idan"
-                    className="w-full rounded-xl bg-[#090A0F]/80 border border-white/10 ps-10 pe-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    placeholder="לדוגמה: idankzm"
+                    className="w-full rounded-2xl border border-white/10 bg-[#090A0F]/80 ps-10 pe-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-500/70 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-1.5">
                 <label
                   htmlFor="login-password"
-                  className="block text-xs font-semibold text-slate-300 mb-1.5"
+                  className="block text-xs font-semibold text-slate-300"
                 >
-                  סיסמה / Password
+                  סיסמה
                 </label>
                 <div className="relative">
                   <Lock className="pointer-events-none absolute top-1/2 -translate-y-1/2 start-3.5 h-4 w-4 text-slate-400" />
@@ -319,76 +321,66 @@ export default function LoginPage() {
                     id="login-password"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    required
-                    dir="ltr"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-xl bg-[#090A0F]/80 border border-white/10 ps-10 pe-11 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    className="w-full rounded-2xl border border-white/10 bg-[#090A0F]/80 ps-10 pe-11 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-500/70 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
                     aria-label={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}
-                    className="absolute top-1/2 -translate-y-1/2 end-3 p-1 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                    className="absolute top-1/2 -translate-y-1/2 end-3 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Quick Fill Demo Accounts */}
-              <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-400">
-                  מילוי מהיר (Demo):
-                </span>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] py-3.5 text-sm font-bold text-white shadow-[0_10px_30px_-6px_rgba(99,102,241,0.55)] hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed transition-all cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <span>מתחבר למערכת...</span>
+                ) : (
+                  <>
+                    <span>התחבר ל-SocialFlow</span>
+                    <ArrowLeft className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          <div className="mt-7 pt-5 border-t border-white/10 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-slate-400">מילוי מהיר לחשבון הדגמה:</span>
+              <div className="flex flex-wrap gap-2">
                 {DEMO_ACCOUNTS.map((acc) => (
                   <button
                     key={acc.username}
                     type="button"
                     onClick={() => handleQuickFill(acc)}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-500/30 px-2.5 py-1 text-[11px] font-mono text-indigo-200 transition-colors cursor-pointer"
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-indigo-500/40 hover:bg-indigo-500/10 transition-colors cursor-pointer"
                   >
-                    <span>@{acc.username}</span>
-                    <span className="text-slate-400">• {acc.role}</span>
+                    {acc.label}
                   </button>
                 ))}
               </div>
-
-              <GradientButton
-                type="submit"
-                variant="primary"
-                size="lg"
-                fullWidth
-                isLoading={isSubmitting}
-              >
-                {isSubmitting ? 'מתחבר למערכת...' : 'התחבר עכשיו'}
-              </GradientButton>
-            </form>
-
-            {/* Footer Switch & Guest Navigation */}
-            <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="text-slate-400">
-                <span>עדיין אין לך חשבון? </span>
-                <Link
-                  href="/register"
-                  className="font-semibold text-indigo-300 hover:text-indigo-200 underline underline-offset-4"
-                >
-                  צור חשבון חדש בחינם
-                </Link>
-              </div>
-              <Link
-                href="/"
-                className="text-slate-400 hover:text-slate-200 transition-colors"
-              >
-                המשך כצופה אורח →
-              </Link>
             </div>
-          </GlassCard>
+
+            <p className="text-center text-xs text-slate-400">
+              עדיין אין לך חשבון?{' '}
+              <Link
+                href="/register"
+                className="font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                צור חשבון חדש עכשיו
+              </Link>
+            </p>
+          </div>
         </motion.main>
       </div>
     </div>
