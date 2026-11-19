@@ -12,6 +12,8 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("SocialFlow-MCP-Server")
 
 GATEWAY_BASE = "http://localhost:8088"
+AI_SERVICE_BASE = "http://localhost:8086"
+POST_SERVICE_BASE = "http://localhost:8082"
 DEFAULT_USER_HEADERS = {
     "Content-Type": "application/json",
     "X-Auth-UserId": "1",
@@ -56,7 +58,7 @@ def create_post(content: str, tags: Optional[List[str]] = None, poll_question: O
         poll_question: Optional poll question to attach.
         poll_options: Optional list of 2 to 5 options for the poll.
     """
-    url = f"{GATEWAY_BASE}/api/v1/posts"
+    url = f"{POST_SERVICE_BASE}/api/v1/posts"
     payload = {
         "content": content,
         "mediaUrls": [],
@@ -91,7 +93,7 @@ def vote_poll(post_id: int, option_id: int) -> str:
         post_id: ID of the post containing the poll.
         option_id: ID of the chosen poll option.
     """
-    url = f"{GATEWAY_BASE}/api/v1/posts/{post_id}/poll/vote?optionId={option_id}"
+    url = f"{POST_SERVICE_BASE}/api/v1/posts/{post_id}/poll/vote?optionId={option_id}"
     try:
         with httpx.Client(timeout=6.0) as client:
             res = client.post(url, headers=DEFAULT_USER_HEADERS)
@@ -129,7 +131,7 @@ def ask_feed_ai(question: str) -> str:
     Args:
         question: Natural language question about what people are saying, posting, or trending on SocialFlow.
     """
-    url = f"{GATEWAY_BASE}/api/v1/ai/ask-feed"
+    url = f"{AI_SERVICE_BASE}/api/v1/ai/ask-feed"
     try:
         with httpx.Client(timeout=15.0) as client:
             res = client.post(url, json={"question": question}, headers=DEFAULT_USER_HEADERS)
@@ -139,6 +141,23 @@ def ask_feed_ai(question: str) -> str:
             return f"AI Service error: HTTP {res.status_code} - {res.text}"
     except Exception as e:
         return f"Error calling AI RAG service: {str(e)}"
+
+@mcp.tool()
+def run_ai_agent(topic: str, user_approved: bool = False) -> str:
+    """
+    Executes the SocialFlow LangGraph autonomous AI agent to research trends, draft a Hebrew post + poll, and moderate it.
+    """
+    url = f"{AI_SERVICE_BASE}/api/v1/ai/agent/run"
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            res = client.post(url, json={"topic": topic, "user_id": 1, "user_approved": user_approved}, headers=DEFAULT_USER_HEADERS)
+            if res.status_code == 200:
+                data = res.json()
+                return f"Draft: {data.get('draft_content')}\nTags: {data.get('suggested_tags')}\nPublished Post ID: {data.get('published_post_id')}"
+            return f"AI Agent error: HTTP {res.status_code} - {res.text}"
+    except Exception as e:
+        return f"Error calling AI Agent: {str(e)}"
+
 
 @mcp.tool()
 def system_health() -> str:
