@@ -27,7 +27,7 @@ public class FeedKafkaConsumer {
     private final FollowerRelationRepository followerRelationRepository;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "post-events", groupId = "feed-service-group")
+    @KafkaListener(topics = {"post-events", "reaction-events"}, groupId = "feed-service-group")
     public void consumePostEvent(String message) {
         log.info("Received post event: {}", message);
         try {

@@ -5,6 +5,7 @@ import com.socialflow.media.dto.UploadUrlResponse;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -27,15 +28,26 @@ public class MediaService {
     private final S3Presigner s3Presigner;
     private final String bucketName;
     private final String publicEndpoint;
+    private final MediaEventProducer mediaEventProducer;
 
     public MediaService(S3Client s3Client,
                         S3Presigner s3Presigner,
+                        String bucketName,
+                        String publicEndpoint) {
+        this(s3Client, s3Presigner, bucketName, publicEndpoint, null);
+    }
+
+    @Autowired
+    public MediaService(S3Client s3Client,
+                        S3Presigner s3Presigner,
                         @Value("${aws.s3.bucket}") String bucketName,
-                        @Value("${aws.s3.public-endpoint}") String publicEndpoint) {
+                        @Value("${aws.s3.public-endpoint}") String publicEndpoint,
+                        MediaEventProducer mediaEventProducer) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.bucketName = bucketName;
         this.publicEndpoint = publicEndpoint.replaceAll("/+$", "");
+        this.mediaEventProducer = mediaEventProducer;
     }
 
     @PostConstruct
@@ -147,11 +159,16 @@ public class MediaService {
                 .build();
 
         PresignedPutObjectRequest presignedPutObjectRequest = s3Presigner.presignPutObject(presignRequest);
+        String accessUrl = publicEndpoint + "/" + bucketName + "/" + fileKey;
+
+        if (mediaEventProducer != null) {
+            mediaEventProducer.emitUploadUrlGenerated(userId, fileKey, request.filename(), request.contentType(), accessUrl);
+        }
 
         return new UploadUrlResponse(
                 fileKey,
                 presignedPutObjectRequest.url().toString(),
-                publicEndpoint + "/" + bucketName + "/" + fileKey
+                accessUrl
         );
     }
 
@@ -168,6 +185,9 @@ public class MediaService {
                 .bucket(bucketName)
                 .key(normalizedKey)
                 .build());
+        if (mediaEventProducer != null) {
+            mediaEventProducer.emitMediaDeleted(userId, normalizedKey);
+        }
     }
 
     private String getFileExtension(String filename) {

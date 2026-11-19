@@ -1,5 +1,6 @@
 package com.socialflow.notification.service;
 
+import com.socialflow.notification.dto.CreateNotificationRequest;
 import com.socialflow.notification.dto.NotificationResponseDto;
 import com.socialflow.notification.dto.UnreadCountDto;
 import com.socialflow.notification.model.Notification;
@@ -7,6 +8,7 @@ import com.socialflow.notification.model.NotificationType;
 import com.socialflow.notification.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,9 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final SimpMessagingTemplate messagingTemplate;
+
+    @Autowired(required = false)
+    private NotificationKafkaProducer notificationKafkaProducer;
 
     @Transactional(readOnly = true)
     public List<NotificationResponseDto> getNotificationsForUser(Long recipientId) {
@@ -49,12 +54,52 @@ public class NotificationService {
 
         notification.setIsRead(true);
         Notification saved = notificationRepository.save(notification);
-        return mapToDto(saved);
+        NotificationResponseDto dto = mapToDto(saved);
+        if (notificationKafkaProducer != null) {
+            notificationKafkaProducer.emitNotificationRead(dto);
+        }
+        return dto;
     }
 
     @Transactional
     public void markAllAsRead(Long recipientId) {
         notificationRepository.markAllAsReadByRecipientId(recipientId);
+        if (notificationKafkaProducer != null) {
+            notificationKafkaProducer.emitAllNotificationsRead(recipientId);
+        }
+    }
+
+    @Transactional
+    public NotificationResponseDto createDirectNotification(Long actorId, CreateNotificationRequest request) {
+        Long recipientId = request.getRecipientId() != null ? request.getRecipientId() : actorId;
+        NotificationType type = request.getType() != null ? request.getType() : NotificationType.SYSTEM;
+
+        Notification notification = Notification.builder()
+                .recipientId(recipientId)
+                .actorId(actorId)
+                .type(type)
+                .entityId(request.getEntityId())
+                .message(request.getMessage())
+                .isRead(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Notification saved = notificationRepository.save(notification);
+        NotificationResponseDto dto = mapToDto(saved);
+
+        String destination = "/topic/user." + recipientId + ".notifications";
+        try {
+            messagingTemplate.convertAndSend(destination, dto);
+            log.info("Pushed direct notification {} to destination {}", saved.getId(), destination);
+        } catch (Exception e) {
+            log.error("Failed to push direct notification via WebSocket: {}", e.getMessage(), e);
+        }
+
+        if (notificationKafkaProducer != null) {
+            notificationKafkaProducer.emitNotificationCreated(dto);
+        }
+
+        return dto;
     }
 
     @Transactional
@@ -91,6 +136,10 @@ public class NotificationService {
             log.info("Pushed notification {} to destination {}", saved.getId(), destination);
         } catch (Exception e) {
             log.error("Failed to push notification via WebSocket: {}", e.getMessage(), e);
+        }
+
+        if (notificationKafkaProducer != null) {
+            notificationKafkaProducer.emitNotificationCreated(dto);
         }
 
         return dto;

@@ -1,39 +1,53 @@
 {
   "info": {
-    "name": "SocialFlow API Collection (Pure Java Microservices Back End)",
-    "description": "Full REST API Collection for SocialFlow — Project 1: Java Microservices Distributed Social Network (API Gateway :8088, Auth/JWT + HttpOnly Cookies, Roles, Posts/Polls/Reactions, Elasticsearch Search, MinIO S3 Media, Notifications, Kafka & Actuator Health).",
+    "name": "SocialFlow — כל שירותי המערכת וטופיקי Kafka (בעברית)",
+    "description": "קולקציית Postman מלאה בעברית עבור מערכת SocialFlow. כל אחד מ-6 הטופיקים ב-Kafka מקבל תיקייה ייעודית ועובד באופן עצמאי לחלוטין דרך שער הכניסה (http://localhost:8088).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:8088"
-    },
-    {
-      "key": "jwt_token",
-      "value": ""
-    }
+    { "key": "baseUrl", "value": "http://localhost:8088" },
+    { "key": "jwt_token", "value": "" },
+    { "key": "post_id", "value": "1" },
+    { "key": "notification_id", "value": "1" },
+    { "key": "media_key", "value": "uploads/1/avatar.png" }
   ],
   "item": [
     {
-      "name": "1. Authentication & Users (user-service)",
+      "name": "1. אימות ומשתמשים — טופיק user-events",
+      "description": "בקשות אימות וניהול משתמשים השולחות אירועים לטופיק user-events ב-Kafka.",
       "item": [
         {
-          "name": "Register User",
+          "name": "הרשמת משתמש חדש (שומר טוקן אוטומטית)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.token) { pm.collectionVariables.set('jwt_token', data.token); if (pm.environment && pm.environment.name) { pm.environment.set('jwt_token', data.token); } }",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"idan\",\n  \"email\": \"idan@example.com\",\n  \"password\": \"Secret123!\",\n  \"fullName\": \"Idan Kazam\"\n}"
+              "raw": "{\n  \"username\": \"demo_user\",\n  \"email\": \"demo_user@example.com\",\n  \"password\": \"YourPassword123!\",\n  \"fullName\": \"משתמש הדגמה\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/register"
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
           }
         },
         {
-          "name": "Login (JWT + HttpOnly Cookie)",
+          "name": "התחברות ושמירת טוקן אוטומטית",
           "event": [
             {
               "listen": "test",
@@ -42,7 +56,109 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const data = pm.response.json();",
-                  "  if (data.token) { pm.collectionVariables.set('jwt_token', data.token); }",
+                  "  if (data.token) { pm.collectionVariables.set('jwt_token', data.token); if (pm.environment && pm.environment.name) { pm.environment.set('jwt_token', data.token); } }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"demo_user\",\n  \"password\": \"YourPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "צפייה בפרופיל משתמש",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/profile/demo_user",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "profile", "demo_user"]
+            }
+          }
+        },
+        {
+          "name": "עדכון פרופיל משתמש",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"עידן קזם\",\n  \"bio\": \"ארכיטקט מיקרו-שירותים ו-Kafka\",\n  \"profileImageUrl\": \"https://example.com/avatar.png\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "profile"]
+            }
+          }
+        },
+        {
+          "name": "חיפוש משתמשים",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/search?q=demo",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "search"],
+              "query": [{ "key": "q", "value": "demo" }]
+            }
+          }
+        },
+        {
+          "name": "מעקב אחרי משתמש",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/noa/follow",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "noa", "follow"]
+            }
+          }
+        },
+        {
+          "name": "ביטול מעקב אחרי משתמש",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/noa/follow",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "noa", "follow"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. פוסטים, תגובות וסטוריז — טופיק post-events",
+      "description": "בקשות ניהול פוסטים, תגובות וסטוריז השולחות אירועים לטופיק post-events ב-Kafka.",
+      "item": [
+        {
+          "name": "יצירת פוסט חדש (שומר מזהה פוסט אוטומטית)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.id) { pm.collectionVariables.set('post_id', String(data.id)); if (pm.environment && pm.environment.name) { pm.environment.set('post_id', String(data.id)); } }",
                   "}"
                 ]
               }
@@ -51,118 +167,112 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"idan\",\n  \"password\": \"Secret123!\"\n}"
-            },
-            "url": "{{baseUrl}}/api/auth/login"
-          }
-        },
-        {
-          "name": "Get User Profile",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/users/profile/idan"
-          }
-        },
-        {
-          "name": "Update Profile (Bio & S3 Profile Image)",
-          "request": {
-            "method": "PUT",
-            "header": [
               { "key": "Content-Type", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Idan Kazam\",\n  \"bio\": \"Senior Java & Distributed Systems Architect\",\n  \"profileImageUrl\": \"http://localhost:9000/socialflow-media/uploads/1/avatar.png\"\n}"
+              "raw": "{\n  \"content\": \"פוסט בדיקה בעברית מתוך Postman ישירות לטופיק post-events! #Java #Kafka #SocialFlow\"\n}"
             },
-            "url": "{{baseUrl}}/api/v1/users/profile"
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts"]
+            }
           }
         },
         {
-          "name": "Search Users",
+          "name": "שליפת פוסט לפי מזהה",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/users/search?q=idan"
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}"]
+            }
           }
         },
         {
-          "name": "Follow User",
+          "name": "הוספת תגובה לפוסט",
           "request": {
             "method": "POST",
             "header": [
+              { "key": "Content-Type", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
             ],
-            "url": "{{baseUrl}}/api/v1/users/noa/follow"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"תגובה חדשה בעברית מתוך Postman!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/comments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}", "comments"]
+            }
           }
         },
         {
-          "name": "Unfollow User",
+          "name": "שיתוף פוסט (ריפוסט)",
           "request": {
-            "method": "DELETE",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/users/noa/follow"
-          }
-        },
-        {
-          "name": "Update User Role (ADMIN only)",
-          "request": {
-            "method": "PUT",
+            "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role\": \"ADMIN\"\n}"
+              "raw": "{\n  \"quoteComment\": \"פוסט מעולה ששווה לשתף!\"\n}"
             },
-            "url": "{{baseUrl}}/api/v1/users/noa/role"
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/repost",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}", "repost"]
+            }
+          }
+        },
+        {
+          "name": "נעיצת או ביטול נעיצת פוסט",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/pin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}", "pin"]
+            }
+          }
+        },
+        {
+          "name": "מחיקת פוסט",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}"]
+            }
+          }
+        },
+        {
+          "name": "שליפת סטוריז פעילים",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/stories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "stories"]
+            }
           }
         }
       ]
     },
     {
-      "name": "2. Posts, Polls, Reactions & Stories (post-service)",
+      "name": "3. לייקים ורגשות — טופיק reaction-events",
+      "description": "בקשות לייקים ורגשות השולחות אירועים באופן עצמאי לטופיק reaction-events ב-Kafka.",
       "item": [
         {
-          "name": "Create Post",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"Hello SocialFlow Event-Driven Microservices! #Java #Kafka #Elasticsearch\"\n}"
-            },
-            "url": "{{baseUrl}}/api/v1/posts"
-          }
-        },
-        {
-          "name": "Get Post by ID",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/posts/1"
-          }
-        },
-        {
-          "name": "Toggle Like",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/posts/1/like"
-          }
-        },
-        {
-          "name": "Add Reaction",
+          "name": "הוספת רגש לפוסט",
           "request": {
             "method": "POST",
             "header": [
@@ -173,125 +283,59 @@
               "mode": "raw",
               "raw": "{\n  \"reactionType\": \"INSIGHTFUL\"\n}"
             },
-            "url": "{{baseUrl}}/api/v1/posts/1/reactions"
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/reactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}", "reactions"]
+            }
           }
         },
         {
-          "name": "Add Comment",
+          "name": "סימון או ביטול לייק לפוסט",
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"Great microservices architecture!\"\n}"
-            },
-            "url": "{{baseUrl}}/api/v1/posts/1/comments"
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/like",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}", "like"]
+            }
           }
         },
         {
-          "name": "Vote in Poll",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/posts/1/poll/vote?optionId=1"
-          }
-        },
-        {
-          "name": "Toggle Bookmark",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/posts/1/bookmark"
-          }
-        },
-        {
-          "name": "Delete Post (Owner or ADMIN)",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/posts/1"
-          }
-        },
-        {
-          "name": "Get Active Stories",
+          "name": "סיכום רגשות לפוסט",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/v1/stories"
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/reactions/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "posts", "{{post_id}}", "reactions", "summary"]
+            }
           }
         }
       ]
     },
     {
-      "name": "3. Feeds & Elasticsearch Search (feed-service)",
+      "name": "4. מדיה ואחסון קבצים — טופיק media-events",
+      "description": "בקשות ניהול קבצים ומדיה השולחות אירועים באופן עצמאי לטופיק media-events ב-Kafka.",
       "item": [
         {
-          "name": "For You Feed",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/feed/for-you?page=0&size=20"
-          }
-        },
-        {
-          "name": "Following Feed",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/feed/following?page=0&size=20"
-          }
-        },
-        {
-          "name": "Trending Feed",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/feed/trending?page=0&size=20"
-          }
-        },
-        {
-          "name": "Trending Hashtags",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/feed/trending-tags"
-          }
-        },
-        {
-          "name": "Elasticsearch Full-Text Search",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/search?q=Kafka&page=0&size=10"
-          }
-        },
-        {
-          "name": "Elasticsearch Multi Search",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/search/multi?q=Kafka&page=0&size=10"
-          }
-        },
-        {
-          "name": "Elasticsearch Search by Hashtag",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/api/v1/search/tag/Java?page=0&size=10"
-          }
-        }
-      ]
-    },
-    {
-      "name": "4. Media S3 / MinIO Presigned URLs (media-service)",
-      "item": [
-        {
-          "name": "Generate Presigned Upload URL",
+          "name": "יצירת קישור להעלאת תמונה (שומר מפתח אוטומטית)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.fileKey) { pm.collectionVariables.set('media_key', data.fileKey); if (pm.environment && pm.environment.name) { pm.environment.set('media_key', data.fileKey); } }",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -302,66 +346,276 @@
               "mode": "raw",
               "raw": "{\n  \"filename\": \"avatar.png\",\n  \"contentType\": \"image/png\"\n}"
             },
-            "url": "{{baseUrl}}/api/v1/media/upload-url"
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media/upload-url",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "media", "upload-url"]
+            }
           }
         },
         {
-          "name": "Delete S3 Media Object (Owner or ADMIN)",
+          "name": "מחיקת קובץ מדיה",
           "request": {
             "method": "DELETE",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/media?key=uploads/1/avatar.png"
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media?key={{media_key}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "media"],
+              "query": [{ "key": "key", "value": "{{media_key}}" }]
+            }
           }
         }
       ]
     },
     {
-      "name": "5. Notifications (notification-service)",
+      "name": "5. פיד וחיפוש — טופיק feed-events",
+      "description": "בקשות פיד וחיפוש השולחות אירועים באופן עצמאי לטופיק feed-events ב-Kafka.",
       "item": [
         {
-          "name": "Get User Notifications",
+          "name": "שליחת אירוע פיד ישירות לטופיק",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [
+              { "key": "Content-Type", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
             ],
-            "url": "{{baseUrl}}/api/v1/notifications"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"FEED_REFRESHED\",\n  \"feedType\": \"FOR_YOU\",\n  \"message\": \"רענון פיד מתוך Postman ישירות לטופיק feed-events!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "feed", "events"]
+            }
           }
         },
         {
-          "name": "Get Unread Count",
+          "name": "פיד מותאם אישית (עבורך)",
           "request": {
             "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/notifications/unread-count"
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/for-you?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "feed", "for-you"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
           }
         },
         {
-          "name": "Mark All Notifications Read",
+          "name": "פיד נעקבים",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/following?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "feed", "following"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "פיד טרנדים",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/trending?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "feed", "trending"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "האשטאגים חמים",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/trending-tags",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "feed", "trending-tags"]
+            }
+          }
+        },
+        {
+          "name": "חיפוש טקסט מלא בפוסטים",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?q=Kafka&page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "search"],
+              "query": [
+                { "key": "q", "value": "Kafka" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "חיפוש משולב",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/multi?q=Kafka&page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "search", "multi"],
+              "query": [
+                { "key": "q", "value": "Kafka" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "חיפוש לפי האשטאג",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/tag/Kafka?page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "search", "tag", "Kafka"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. התראות זמן אמת — טופיק notification-events",
+      "description": "בקשות התראות זמן אמת השולחות אירועים באופן עצמאי לטופיק notification-events ב-Kafka.",
+      "item": [
+        {
+          "name": "יצירת ושליחת התראה חדשה (שומר מזהה אוטומטית)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.id) { pm.collectionVariables.set('notification_id', String(data.id)); if (pm.environment && pm.environment.name) { pm.environment.set('notification_id', String(data.id)); } }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"SYSTEM\",\n  \"entityId\": 1,\n  \"message\": \"התראת בדיקה חדשה בעברית מתוך Postman ישירות לטופיק notification-events!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications"]
+            }
+          }
+        },
+        {
+          "name": "שליפת כל ההתראות",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications"]
+            }
+          }
+        },
+        {
+          "name": "מונה התראות שלא נקראו",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/unread-count",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "unread-count"]
+            }
+          }
+        },
+        {
+          "name": "סימון התראה כנקראה",
           "request": {
             "method": "PATCH",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
-            ],
-            "url": "{{baseUrl}}/api/v1/notifications/read-all"
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/{{notification_id}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "{{notification_id}}", "read"]
+            }
+          }
+        },
+        {
+          "name": "סימון כל ההתראות כנקראו",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "read-all"]
+            }
           }
         }
       ]
     },
     {
-      "name": "6. Actuator Health & Diagnostics",
+      "name": "7. בדיקת תקינות השירותים",
+      "description": "בדיקות זמינות ותקינות לכל המיקרו-שירותים הרצים ב-Docker.",
       "item": [
-        { "name": "API Gateway Health (:8088)", "request": { "method": "GET", "url": "http://localhost:8088/actuator/health" } },
-        { "name": "User Service Health (:8081)", "request": { "method": "GET", "url": "http://localhost:8081/actuator/health" } },
-        { "name": "Post Service Health (:8082)", "request": { "method": "GET", "url": "http://localhost:8082/actuator/health" } },
-        { "name": "Feed Service Health (:8083)", "request": { "method": "GET", "url": "http://localhost:8083/actuator/health" } },
-        { "name": "Media Service Health (:8084)", "request": { "method": "GET", "url": "http://localhost:8084/actuator/health" } },
-        { "name": "Notification Service Health (:8085)", "request": { "method": "GET", "url": "http://localhost:8085/actuator/health" } },
-        { "name": "AI Service Health (via Gateway)", "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/ai/health" } }
+        {
+          "name": "תקינות שער הכניסה (8088)",
+          "request": { "method": "GET", "url": "http://localhost:8088/actuator/health" }
+        },
+        {
+          "name": "תקינות שירות משתמשים (8081)",
+          "request": { "method": "GET", "url": "http://localhost:8081/actuator/health" }
+        },
+        {
+          "name": "תקינות שירות פוסטים (8082)",
+          "request": { "method": "GET", "url": "http://localhost:8082/actuator/health" }
+        },
+        {
+          "name": "תקינות שירות פיד (8083)",
+          "request": { "method": "GET", "url": "http://localhost:8083/actuator/health" }
+        },
+        {
+          "name": "תקינות שירות מדיה (8084)",
+          "request": { "method": "GET", "url": "http://localhost:8084/actuator/health" }
+        },
+        {
+          "name": "תקינות שירות התראות (8085)",
+          "request": { "method": "GET", "url": "http://localhost:8085/actuator/health" }
+        },
+        {
+          "name": "תקינות שירות בינה מלאכותית (8086)",
+          "request": { "method": "GET", "url": "http://localhost:8086/health" }
+        }
       ]
     }
   ]

@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: media-service
+  jackson:
+    default-property-inclusion: non_null
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9095}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 aws:
   s3:
