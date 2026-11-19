@@ -330,7 +330,10 @@
                 "exec": [
                   "if (pm.response.code === 200 || pm.response.code === 201) {",
                   "  const data = pm.response.json();",
-                  "  if (data.fileKey) { pm.collectionVariables.set('media_key', data.fileKey); if (pm.environment && pm.environment.name) { pm.environment.set('media_key', data.fileKey); } }",
+                  "  const saveVar = (k, v) => { if (v) { pm.collectionVariables.set(k, v); if (pm.environment && pm.environment.name) { pm.environment.set(k, v); } } };",
+                  "  saveVar('media_key', data.fileKey);",
+                  "  saveVar('upload_url', data.uploadUrl);",
+                  "  saveVar('access_url', data.accessUrl);",
                   "}"
                 ]
               }
@@ -363,6 +366,28 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "media"],
               "query": [{ "key": "key", "value": "{{media_key}}" }]
+            }
+          }
+        },
+        {
+          "name": "העלאת קובץ התמונה שלך בפועל (PUT ל-MinIO)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "image/png" }],
+            "body": { "mode": "file", "file": {} },
+            "url": "{{upload_url}}"
+          }
+        },
+        {
+          "name": "שליפת התמונות שהעליתי וכמות ההעלאות (GET)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/media",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "media"]
             }
           }
         }
