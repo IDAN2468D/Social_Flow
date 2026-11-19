@@ -112,6 +112,7 @@ public class UserService {
         }
 
         User savedUser = userRepository.save(user);
+        eventProducer.emitUserProfileUpdated(savedUser.getId(), savedUser.getUsername(), savedUser.getFullName(), savedUser.getBio());
         return buildProfileDto(savedUser, savedUser);
     }
 

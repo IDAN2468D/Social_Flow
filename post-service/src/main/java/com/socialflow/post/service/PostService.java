@@ -8,6 +8,7 @@ import com.socialflow.post.event.PostDeletedEvent;
 import com.socialflow.post.event.PostLikedEvent;
 import com.socialflow.post.event.PostPinnedEvent;
 import com.socialflow.post.event.PostRepostedEvent;
+import com.socialflow.post.event.ReactionEvent;
 import com.socialflow.post.model.*;
 import com.socialflow.post.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -236,6 +237,15 @@ public class PostService {
                     .username(currentUser.getUsername())
                     .authorId(post.getAuthorId())
                     .liked(likedEvent)
+                    .build());
+        } else {
+            postKafkaProducer.emitReactionEvent(ReactionEvent.builder()
+                    .postId(postId)
+                    .userId(currentUser.getUserId())
+                    .username(currentUser.getUsername())
+                    .authorId(post.getAuthorId())
+                    .reactionType(reactionType.name())
+                    .active(true)
                     .build());
         }
 

@@ -16,7 +16,7 @@ public class NotificationKafkaConsumer {
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "post-events", groupId = "notification-service-group")
+    @KafkaListener(topics = {"post-events", "reaction-events"}, groupId = "notification-service-group")
     public void consumePostEvent(String message) {
         log.info("Notification service received post event: {}", message);
         try {
