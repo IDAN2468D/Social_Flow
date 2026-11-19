@@ -1,12 +1,22 @@
-from fastapi import FastAPI, Header
+from fastapi import FastAPI, Header, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+import base64
 import os
 import httpx
+from urllib.parse import quote
 from app.config import config
 from app.gemini_client import gemini_client
 from app.agent_workflow import socialflow_agent
+from app.voice_service import (
+    AVAILABLE_VOICES,
+    classify_voice_intent,
+    resolve_voice,
+    synthesize_speech,
+    transcribe_audio,
+)
 
 app = FastAPI(
     title="SocialFlow AI Service (Gemini 3.5 Flash-Lite & RAG)",
@@ -46,6 +56,10 @@ class AgentRunRequest(BaseModel):
     user_id: int = 1
     target_audience: Optional[str] = "קהל רשת חברתית"
     user_approved: bool = False
+
+class VoiceTtsRequest(BaseModel):
+    text: str
+    voice: Optional[str] = "he-IL-HilaNeural"
 
 @app.get("/health")
 @app.get("/api/v1/ai/health")
@@ -138,3 +152,149 @@ async def update_config(req: SetKeyRequest):
         "model": gemini_client.model,
         "has_api_key": bool(gemini_client.api_key)
     }
+
+
+# =========================================================================
+# Voice Assistant Endpoints (STT, TTS, and End-to-End Voice -> Chat/RAG/Agent)
+# =========================================================================
+
+@app.get("/api/v1/ai/voice/voices")
+async def list_voices():
+    return {
+        "default_voice": "he-IL-HilaNeural",
+        "voices": AVAILABLE_VOICES,
+    }
+
+
+@app.post("/api/v1/ai/voice/tts")
+async def text_to_speech(req: VoiceTtsRequest):
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required for speech synthesis")
+    try:
+        audio_bytes = await synthesize_speech(req.text, req.voice)
+        return Response(
+            content=audio_bytes,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": 'inline; filename="socialflow-voice.mp3"',
+                "X-Voice-Used": resolve_voice(req.voice),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS synthesis failed: {str(e)}")
+
+
+@app.post("/api/v1/ai/voice/stt")
+async def speech_to_text(audio: UploadFile = File(...)):
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded audio file is empty")
+    try:
+        mime_type = audio.content_type or "audio/wav"
+        result = await transcribe_audio(audio_bytes, mime_type)
+        result["filename"] = audio.filename or "audio"
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"STT transcription failed: {str(e)}")
+
+
+@app.post("/api/v1/ai/voice/assistant")
+async def voice_assistant(
+    audio: Optional[UploadFile] = File(default=None),
+    text: Optional[str] = Form(default=None),
+    voice: str = Form(default="he-IL-HilaNeural"),
+    user_id: int = Form(default=1),
+    auto_publish: bool = Form(default=False),
+    return_audio: str = Form(default="json"),
+    authorization: Optional[str] = Header(default=None),
+):
+    """
+    End-to-end Voice Assistant for SocialFlow:
+    1. Accepts either an uploaded audio file (WAV/MP3/WEBM/M4A) or a text prompt.
+    2. Transcribes audio via Gemini STT when audio is provided.
+    3. Routes intent automatically to LangGraph Agent ('agent'), Feed RAG ('rag'), or Chat ('chat').
+    4. Synthesizes Hebrew/English neural MP3 reply via edge-tts.
+    5. Returns either clean JSON (with audio_base64) or raw audio/mpeg when return_audio='mp3'.
+    """
+    transcript = (text or "").strip()
+    if audio is not None:
+        audio_bytes = await audio.read()
+        if audio_bytes:
+            stt_res = await transcribe_audio(audio_bytes, audio.content_type or "audio/wav")
+            transcript = stt_res.get("transcript", "").strip()
+
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Provide either an audio file or a text field")
+
+    route = await classify_voice_intent(transcript)
+    intent = route["intent"]
+    should_publish = bool(auto_publish or route.get("auto_publish", False))
+
+    reply_text = ""
+    extra_payload: Dict[str, Any] = {}
+
+    if intent == "agent":
+        agent_state = {
+            "topic": route.get("topic") or transcript,
+            "user_id": user_id,
+            "target_audience": "קהל רשת חברתית",
+            "auth_header": authorization,
+            "trends_context": [],
+            "draft_content": "",
+            "suggested_tags": [],
+            "suggested_poll": None,
+            "moderation_status": {},
+            "user_approved": should_publish,
+            "published_post_id": None,
+            "logs": [],
+            "error": None,
+        }
+        agent_result = await socialflow_agent.ainvoke(agent_state)
+        agent_result.pop("auth_header", None)
+        clean_agent = {k: v for k, v in agent_result.items() if v is not None}
+        extra_payload["agent_result"] = clean_agent
+
+        draft = clean_agent.get("draft_content", "")
+        pub_id = clean_agent.get("published_post_id")
+        if pub_id:
+            reply_text = f"הפוסט נוצר ופורסם בהצלחה בפיד עם מזהה מספר {pub_id}. הנה התוכן: {draft}"
+        else:
+            reply_text = f"הכנתי עבורך טיוטת פוסט וסקר שעברו בדיקת בטיחות. הנה הטיוטה: {draft}"
+    elif intent == "rag":
+        rag_res = await ask_feed(AskFeedRequest(question=transcript))
+        extra_payload["rag_result"] = rag_res
+        reply_text = rag_res.get("answer") or "לא נמצא מידע רלוונטי בפיד כרגע."
+    else:
+        reply_text = await gemini_client.generate_chat_reply("SocialFlow AI", transcript)
+
+    chosen_voice = resolve_voice(voice)
+    audio_bytes_out = b""
+    try:
+        audio_bytes_out = await synthesize_speech(reply_text, chosen_voice)
+    except Exception as e:
+        extra_payload["tts_warning"] = str(e)
+
+    if (return_audio or "").strip().lower() == "mp3" and audio_bytes_out:
+        return Response(
+            content=audio_bytes_out,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": 'inline; filename="socialflow-assistant.mp3"',
+                "X-Voice-Intent": intent,
+                "X-Voice-Used": chosen_voice,
+                "X-Voice-Transcript": quote(transcript[:200]),
+            },
+        )
+
+    response_body: Dict[str, Any] = {
+        "transcript": transcript,
+        "intent": intent,
+        "reply_text": reply_text,
+        "voice_used": chosen_voice,
+        "audio_mime": "audio/mpeg",
+        "audio_size_bytes": len(audio_bytes_out),
+    }
+    if audio_bytes_out:
+        response_body["audio_base64"] = base64.b64encode(audio_bytes_out).decode("utf-8")
+    response_body.update(extra_payload)
+    return response_body

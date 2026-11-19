@@ -55,3 +55,26 @@ def test_ai_health_endpoints():
     assert res_v1.json() == res_root.json()
     assert res_v1.json()["status"] == "UP"
     assert res_v1.json()["service"] == "ai-service"
+
+
+def test_voice_voices_and_intent_routing():
+    """Verify voice listing endpoint and deterministic voice intent routing"""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.voice_service import classify_voice_intent, resolve_voice
+
+    client = TestClient(app)
+    res = client.get("/api/v1/ai/voice/voices")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["default_voice"] == "he-IL-HilaNeural"
+    assert len(data["voices"]) >= 2
+
+    assert resolve_voice("female") == "he-IL-HilaNeural"
+    assert resolve_voice("male") == "he-IL-AvriNeural"
+
+    agent_route = asyncio.run(classify_voice_intent("תכתוב לי פוסט על Kafka"))
+    assert agent_route["intent"] == "agent"
+
+    rag_route = asyncio.run(classify_voice_intent("מה חדש בפיד של SocialFlow?"))
+    assert rag_route["intent"] == "rag"

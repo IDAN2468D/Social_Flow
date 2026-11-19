@@ -161,6 +161,84 @@
           }
         }
       ]
+    },
+    {
+      "name": "3. עוזר קולי (Voice Assistant — STT / TTS / LangGraph)",
+      "description": "עוזר קולי מלא בעברית ואנגלית: תמלול אודיו עם Gemini, ניתוב חכם בין צ'אט/RAG/סוכן LangGraph, והפקת דיבור טבעי ב-MP3 עם edge-tts.",
+      "item": [
+        {
+          "name": "עוזר קולי 1 — הפקת דיבור בעברית מטקסט (TTS -> MP3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"שלום! העוזר הקולי של SocialFlow מחובר ומוכן להפעיל את הסוכנים האוטונומיים שלך.\",\n  \"voice\": \"he-IL-HilaNeural\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/voice/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ai", "voice", "tts"]
+            }
+          }
+        },
+        {
+          "name": "עוזר קולי 2 — תמלול קובץ קול לטקסט (STT)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "audio", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/voice/stt",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ai", "voice", "stt"]
+            }
+          }
+        },
+        {
+          "name": "עוזר קולי 3 — עוזר קולי מלא (צ'אט / RAG / סוכן LangGraph)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "text", "type": "text", "value": "תכתוב לי פוסט על Kafka ומיקרו-שירותים" },
+                { "key": "voice", "type": "text", "value": "he-IL-HilaNeural" },
+                { "key": "user_id", "type": "text", "value": "3" },
+                { "key": "auto_publish", "type": "text", "value": "false" },
+                { "key": "return_audio", "type": "text", "value": "json" },
+                { "key": "audio", "type": "file", "src": "", "disabled": true }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/voice/assistant",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ai", "voice", "assistant"]
+            }
+          }
+        },
+        {
+          "name": "עוזר קולי 4 — רשימת הקולות הזמינים (Voices)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/voice/voices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ai", "voice", "voices"]
+            }
+          }
+        }
+      ]
     }
   ]
 }

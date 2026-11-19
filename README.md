@@ -194,6 +194,11 @@ flowchart TD
   - `POST /api/v1/ai/smart-replies` — הצעת 3 תגובות קצרות וטבעיות בעברית.
   - `POST /api/v1/ai/chat-reply` — ניסוח תגובת צ'אט אנושית.
   - `GET /api/v1/ai/health` — סטטוס שירות ה-AI, המודל והאם מפתח `GEMINI_API_KEY` טעון.
+- **🎙️ עוזר קולי מלא בעברית (`Voice Assistant`)** ([`voice_service.py`](ai-service/app/voice_service.py)):
+  - **זיהוי דיבור (`STT`)** באמצעות `Gemini 3.5 Flash-Lite` המולטימודאלי (`POST /api/v1/ai/voice/stt` — קובץ `WAV`/`MP3`/`WEBM`/`M4A` ב-`form-data`).
+  - **הפקת דיבור נויראלי בעברית (`TTS`)** באמצעות `edge-tts` (`POST /api/v1/ai/voice/tts` — קולות `he-IL-HilaNeural` נשי ו-`he-IL-AvriNeural` גברי, מחזיר קובץ `MP3` שניתן לשמוע מיד ב-`Postman` עם `Send and Download`).
+  - **עוזר קולי מקצה-לקצה (`POST /api/v1/ai/voice/assistant`)**: מקבל קובץ קול או טקסט, מנתב אוטומטית בין **צ'אט**, **שאלת `RAG`** או **סוכן `LangGraph` אוטונומי**, ומחזיר `JSON` (כולל `audio_base64`) או שמע `MP3` ישיר (`return_audio=mp3`).
+  - **רשימת קולות (`GET /api/v1/ai/voice/voices`)**: מציגה את כל הקולות הזמינים בעברית ובאנגלית.
 
 ### 2. `mcp-server` — שרת `FastMCP` מקומי (`stdio`, מחוץ ל-`Docker`)
 סקריפט [`mcp-server/server.py`](mcp-server/server.py) (וגם [`socialflow_mcp_server.py`](mcp-server/socialflow_mcp_server.py)) המשמש כגשר **Model Context Protocol** המאפשר לעוזרי AI חיצוניים (**Cursor**, **Claude Desktop**, **Antigravity**) לתקשר ישירות עם הרשת החברתית:
@@ -246,7 +251,7 @@ flowchart TD
 - **פיד וחיפוש Elasticsearch (`/api/v1/feed/**`, `/api/v1/search/**`)**: `POST /api/v1/feed/events`, `GET /api/v1/feed/for-you`, `following`, `trending`, `trending-tags`, `GET /api/v1/search?q=`, `GET /api/v1/search/multi?q=`, `GET /api/v1/search/tag/{tag}`.
 - **מדיה MinIO / S3 (`/api/v1/media/**`)**: `GET /api/v1/media` (רשימת התמונות שהועלו + `totalUploaded`), `POST /api/v1/media/upload-url`, `PUT {{upload_url}}` (בינארי ישיר ל-MinIO), `DELETE /api/v1/media?key=...`.
 - **התראות (`/api/v1/notifications/**`, `/ws/**`)**: `POST /api/v1/notifications`, `GET /api/v1/notifications`, `GET /unread-count`, `PATCH /{id}/read`, `PATCH /read-all`, ו-`WS /ws`.
-- **סוכני AI (`Python` - `/api/v1/ai/**`)**: `POST /api/v1/ai/agent/run`, `POST /api/v1/ai/ask-feed`, `POST /api/v1/ai/analyze`, `POST /api/v1/ai/smart-replies`, `POST /api/v1/ai/chat-reply`, `GET /api/v1/ai/health`.
+- **סוכני AI ועוזר קולי (`Python` - `/api/v1/ai/**`)**: `POST /api/v1/ai/agent/run`, `POST /api/v1/ai/ask-feed`, `POST /api/v1/ai/analyze`, `POST /api/v1/ai/smart-replies`, `POST /api/v1/ai/chat-reply`, `GET /api/v1/ai/health`, `POST /api/v1/ai/voice/tts`, `POST /api/v1/ai/voice/stt`, `POST /api/v1/ai/voice/assistant`, `GET /api/v1/ai/voice/voices`.
 
 ---
 
@@ -272,6 +277,11 @@ docker compose --profile all up -d --build
 docker compose ps
 ```
 או באמצעות הסקריפטים [`start_docker.ps1`](start_docker.ps1) (`.\start_docker.ps1 -Profile all` / `backend` / `infra` / `kafka`) ו-[`stop_docker.ps1`](stop_docker.ps1).
+
+### 💾 הגבלת לוגים אוטומטית וחיסכון באחסון (`Docker` + `Kafka`)
+כדי למנוע מילוי של הדיסק במחשב האישי, [`docker-compose.yml`](docker-compose.yml) מגדיר אוטומטית:
+- **רוטציית לוגים לכל 12 הקונטיינרים (`x-logging: &default-logging`)**: `max-size: 5m`, `max-file: 2`, `compress: true` — מקסימום `10 MB` לוגים לקונטיינר (`~120 MB` לכל המערכת יחד).
+- **ניקוי לוגים אוטומטי ב-`Kafka`**: שמירה מוגבלת ל-`24` שעות (`KAFKA_LOG_RETENTION_HOURS: 24`) ול-`50 MB` ל-Partition (`KAFKA_LOG_RETENTION_BYTES: 52428800`, `cleanup.policy: delete`).
 
 ### הגדרת מפתח Gemini מקומי (ללא העלאה ל-Git)
 צור קובץ `.env` בשורש הפרויקט (חסום ב-`.gitignore` ולא עולה לעולם ל-GitHub):
