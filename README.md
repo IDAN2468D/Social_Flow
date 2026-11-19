@@ -244,7 +244,7 @@ flowchart TD
 - **אימות ומשתמשים (`/api/auth/**`, `/api/v1/users/**`)**: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/v1/users/profile/{username}`, `PUT /api/v1/users/profile`, `PUT /api/v1/users/{target}/role` (`ADMIN`), `GET /api/v1/users/search?q=`, `POST/DELETE /api/v1/users/{target}/follow`.
 - **פוסטים, רגשות, סקרים וסטוריז (`/api/v1/posts/**`, `/api/v1/stories/**`)**: `POST /api/v1/posts`, `GET /api/v1/posts/{id}`, `DELETE /api/v1/posts/{id}`, `POST /{id}/like`, `POST /{id}/reactions`, `GET /{id}/reactions/summary`, `POST /{id}/comments`, `POST /{id}/repost`, `PUT /{id}/pin`, `POST /{id}/poll/vote`, `POST /{id}/bookmark`, `GET /api/v1/stories`.
 - **פיד וחיפוש Elasticsearch (`/api/v1/feed/**`, `/api/v1/search/**`)**: `POST /api/v1/feed/events`, `GET /api/v1/feed/for-you`, `following`, `trending`, `trending-tags`, `GET /api/v1/search?q=`, `GET /api/v1/search/multi?q=`, `GET /api/v1/search/tag/{tag}`.
-- **מדיה MinIO / S3 (`/api/v1/media/**`)**: `POST /api/v1/media/upload-url`, `PUT {{upload_url}}` (בינארי ישיר ל-MinIO), `DELETE /api/v1/media?key=...`.
+- **מדיה MinIO / S3 (`/api/v1/media/**`)**: `GET /api/v1/media` (רשימת התמונות שהועלו + `totalUploaded`), `POST /api/v1/media/upload-url`, `PUT {{upload_url}}` (בינארי ישיר ל-MinIO), `DELETE /api/v1/media?key=...`.
 - **התראות (`/api/v1/notifications/**`, `/ws/**`)**: `POST /api/v1/notifications`, `GET /api/v1/notifications`, `GET /unread-count`, `PATCH /{id}/read`, `PATCH /read-all`, ו-`WS /ws`.
 - **סוכני AI (`Python` - `/api/v1/ai/**`)**: `POST /api/v1/ai/agent/run`, `POST /api/v1/ai/ask-feed`, `POST /api/v1/ai/analyze`, `POST /api/v1/ai/smart-replies`, `POST /api/v1/ai/chat-reply`, `GET /api/v1/ai/health`.
 

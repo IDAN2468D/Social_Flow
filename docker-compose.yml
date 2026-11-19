@@ -1,3 +1,10 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "5m"
+    max-file: "2"
+    compress: "true"
+
 services:
   # =========================================================================
   # 1. תשתית נתונים, הודעות ואחסון (Infrastructure — מותאם לצריכת RAM נמוכה)
@@ -8,6 +15,7 @@ services:
     profiles: ["infra", "backend", "all"]
     restart: unless-stopped
     mem_limit: 256m
+    logging: *default-logging
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -31,6 +39,7 @@ services:
     profiles: ["kafka", "infra", "backend", "all"]
     restart: unless-stopped
     mem_limit: 512m
+    logging: *default-logging
     ports:
       - "9095:9092"
     environment:
@@ -47,6 +56,10 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 52428800
+      KAFKA_LOG_SEGMENT_BYTES: 16777216
+      KAFKA_LOG_CLEANUP_POLICY: 'delete'
       KAFKA_HEAP_OPTS: '-Xms256m -Xmx320m'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     networks:
@@ -58,6 +71,7 @@ services:
     profiles: ["kafka", "infra", "backend", "all"]
     restart: unless-stopped
     mem_limit: 256m
+    logging: *default-logging
     ports:
       - "8080:8080"
     environment:
@@ -76,6 +90,7 @@ services:
     profiles: ["infra", "backend", "all"]
     restart: unless-stopped
     mem_limit: 640m
+    logging: *default-logging
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -95,6 +110,7 @@ services:
     restart: always
     user: root
     mem_limit: 256m
+    logging: *default-logging
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadminpassword
@@ -118,6 +134,7 @@ services:
     profiles: ["backend", "all"]
     restart: unless-stopped
     mem_limit: 288m
+    logging: *default-logging
     ports:
       - "8081:8081"
     environment:
@@ -140,6 +157,7 @@ services:
     profiles: ["backend", "all"]
     restart: unless-stopped
     mem_limit: 288m
+    logging: *default-logging
     ports:
       - "8082:8082"
     environment:
@@ -162,6 +180,7 @@ services:
     profiles: ["backend", "all"]
     restart: unless-stopped
     mem_limit: 288m
+    logging: *default-logging
     ports:
       - "8083:8083"
     environment:
@@ -187,6 +206,7 @@ services:
     profiles: ["backend", "all"]
     restart: on-failure
     mem_limit: 288m
+    logging: *default-logging
     ports:
       - "8084:8084"
     environment:
@@ -213,6 +233,7 @@ services:
     profiles: ["backend", "all"]
     restart: unless-stopped
     mem_limit: 288m
+    logging: *default-logging
     ports:
       - "8085:8085"
     environment:
@@ -238,6 +259,7 @@ services:
     profiles: ["backend", "all"]
     restart: unless-stopped
     mem_limit: 288m
+    logging: *default-logging
     ports:
       - "8088:8088"
     environment:
@@ -270,6 +292,7 @@ services:
     profiles: ["ai", "all"]
     restart: unless-stopped
     mem_limit: 256m
+    logging: *default-logging
     ports:
       - "8086:8086"
     environment:

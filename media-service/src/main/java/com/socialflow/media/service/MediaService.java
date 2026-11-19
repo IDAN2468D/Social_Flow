@@ -17,6 +17,11 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -188,6 +193,44 @@ public class MediaService {
         if (mediaEventProducer != null) {
             mediaEventProducer.emitMediaDeleted(userId, normalizedKey);
         }
+    }
+
+    public Map<String, Object> listUserMedia(Long userId, boolean all, boolean isAdmin) {
+        String prefix = (all && isAdmin) ? "uploads/" : "uploads/" + userId + "/";
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix(prefix)
+                .build();
+
+        List<S3Object> contents = new ArrayList<>();
+        ListObjectsV2Response response = s3Client.listObjectsV2(request);
+        if (response != null && response.contents() != null) {
+            contents.addAll(response.contents());
+        }
+
+        contents.sort(Comparator.comparing(
+                S3Object::lastModified,
+                Comparator.nullsLast(Comparator.reverseOrder())
+        ));
+
+        List<Map<String, Object>> files = new ArrayList<>();
+        for (S3Object obj : contents) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("fileKey", obj.key());
+            item.put("sizeBytes", obj.size());
+            if (obj.lastModified() != null) {
+                item.put("lastModified", obj.lastModified().toString());
+            }
+            item.put("accessUrl", publicEndpoint + "/" + bucketName + "/" + obj.key());
+            files.add(item);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("userId", userId);
+        result.put("bucket", bucketName);
+        result.put("totalUploaded", files.size());
+        result.put("files", files);
+        return result;
     }
 
     private String getFileExtension(String filename) {

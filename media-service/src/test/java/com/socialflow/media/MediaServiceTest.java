@@ -19,6 +19,13 @@ import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -74,5 +81,33 @@ class MediaServiceTest {
 
         mediaService.deleteMedia(42L, true, "uploads/99/other.png");
         verify(s3Client, org.mockito.Mockito.times(2)).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    @DisplayName("listUserMedia returns uploaded file count and access URLs for user")
+    void listUserMedia_ReturnsCountAndFiles() {
+        S3Object obj1 = S3Object.builder()
+                .key("uploads/42/pic1.png")
+                .size(1024L)
+                .lastModified(Instant.parse("2026-11-19T09:00:00Z"))
+                .build();
+        S3Object obj2 = S3Object.builder()
+                .key("uploads/42/pic2.jpg")
+                .size(2048L)
+                .lastModified(Instant.parse("2026-11-19T10:00:00Z"))
+                .build();
+
+        when(s3Client.listObjectsV2(any(ListObjectsV2Request.class)))
+                .thenReturn(ListObjectsV2Response.builder().contents(List.of(obj1, obj2)).build());
+
+        Map<String, Object> result = mediaService.listUserMedia(42L, false, false);
+
+        assertThat(result.get("userId")).isEqualTo(42L);
+        assertThat(result.get("totalUploaded")).isEqualTo(2);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> files = (List<Map<String, Object>>) result.get("files");
+        assertThat(files).hasSize(2);
+        assertThat(files.get(0).get("fileKey")).isEqualTo("uploads/42/pic2.jpg");
+        assertThat(files.get(0).get("accessUrl")).isEqualTo("http://localhost:9000/socialflow-media/uploads/42/pic2.jpg");
     }
 }

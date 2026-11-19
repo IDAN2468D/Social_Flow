@@ -36,6 +36,19 @@ public class MediaController {
         return ResponseEntity.ok(Map.of("status", "UP", "service", "media-service"));
     }
 
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> listMyMedia(
+            @RequestParam(value = "all", defaultValue = "false") boolean all,
+            @RequestHeader(value = "X-User-Id", required = false) Long headerUserId,
+            @RequestHeader(value = "X-Auth-UserId", required = false) String gatewayUserId,
+            @RequestHeader(value = "X-User-Role", required = false) String gatewayRole,
+            @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        Long userId = resolveUserId(headerUserId, gatewayUserId, authHeader);
+        boolean isAdmin = resolveIsAdmin(gatewayRole, authHeader);
+        return ResponseEntity.ok(mediaService.listUserMedia(userId, all, isAdmin));
+    }
+
     @PostMapping({"/upload-url", "/presign"})
     public ResponseEntity<UploadUrlResponse> getUploadUrl(
             @RequestHeader(value = "X-User-Id", required = false) Long headerUserId,
