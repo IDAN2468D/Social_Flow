@@ -5,9 +5,34 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8088" },
-    { "key": "jwt_token", "value": "" },
-    { "key": "post_id", "value": "1" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8088"
+    },
+    {
+      "key": "jwt_token",
+      "value": ""
+    },
+    {
+      "key": "post_id",
+      "value": "1"
+    },
+    {
+      "key": "jwtToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "postId",
+      "value": "1"
+    },
+    {
+      "key": "cursor",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -18,8 +43,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -27,8 +58,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/agent/run",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "agent", "run"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "agent",
+                "run"
+              ]
             }
           }
         },
@@ -54,8 +93,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -63,8 +108,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/agent/run",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "agent", "run"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "agent",
+                "run"
+              ]
             }
           }
         }
@@ -78,8 +131,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -87,8 +146,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/ask-feed",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "ask-feed"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "ask-feed"
+              ]
             }
           }
         },
@@ -97,8 +163,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -106,8 +178,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/analyze",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "analyze"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "analyze"
+              ]
             }
           }
         },
@@ -116,8 +195,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -125,8 +210,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/smart-replies",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "smart-replies"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "smart-replies"
+              ]
             }
           }
         },
@@ -135,8 +227,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -144,8 +242,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/chat-reply",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "chat-reply"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "chat-reply"
+              ]
             }
           }
         },
@@ -155,8 +260,15 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "health"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "health"
+              ]
             }
           }
         }
@@ -171,8 +283,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -180,8 +298,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/voice/tts",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "voice", "tts"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "voice",
+                "tts"
+              ]
             }
           }
         },
@@ -189,17 +315,34 @@
           "name": "עוזר קולי 2 — תמלול קובץ קול לטקסט (STT)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "audio", "type": "file", "src": "" }
+                {
+                  "key": "audio",
+                  "type": "file",
+                  "src": ""
+                }
               ]
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/voice/stt",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "voice", "stt"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "voice",
+                "stt"
+              ]
             }
           }
         },
@@ -207,22 +350,60 @@
           "name": "עוזר קולי 3 — עוזר קולי מלא (צ'אט / RAG / סוכן LangGraph)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "text", "type": "text", "value": "תכתוב לי פוסט על Kafka ומיקרו-שירותים" },
-                { "key": "voice", "type": "text", "value": "he-IL-HilaNeural" },
-                { "key": "user_id", "type": "text", "value": "3" },
-                { "key": "auto_publish", "type": "text", "value": "false" },
-                { "key": "return_audio", "type": "text", "value": "json" },
-                { "key": "audio", "type": "file", "src": "", "disabled": true }
+                {
+                  "key": "text",
+                  "type": "text",
+                  "value": "תכתוב לי פוסט על Kafka ומיקרו-שירותים"
+                },
+                {
+                  "key": "voice",
+                  "type": "text",
+                  "value": "he-IL-HilaNeural"
+                },
+                {
+                  "key": "user_id",
+                  "type": "text",
+                  "value": "3"
+                },
+                {
+                  "key": "auto_publish",
+                  "type": "text",
+                  "value": "false"
+                },
+                {
+                  "key": "return_audio",
+                  "type": "text",
+                  "value": "json"
+                },
+                {
+                  "key": "audio",
+                  "type": "file",
+                  "src": "",
+                  "disabled": true
+                }
               ]
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/voice/assistant",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "voice", "assistant"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "voice",
+                "assistant"
+              ]
             }
           }
         },
@@ -230,11 +411,24 @@
           "name": "עוזר קולי 4 — רשימת הקולות הזמינים (Voices)",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/voice/voices",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "voice", "voices"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "voice",
+                "voices"
+              ]
             }
           }
         },
@@ -243,8 +437,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -252,10 +452,323 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/ai/voice/briefing",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "ai", "voice", "briefing"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "voice",
+                "briefing"
+              ]
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "4. AI Enrichment, LLMOps & Corrective RAG",
+      "description": "Autonomous Kafka enrichment trigger, LLMOps metrics, CRAG v2.0 + SSE streaming, and ADMIN config.",
+      "item": [
+        {
+          "name": "Trigger Autonomous Enrichment (POST /enrichment/process)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/enrichment/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "enrichment",
+                "process"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"postId\": 1,\n  \"content\": \"בנינו ארכיטקטורת מיקרו-שירותים עם #בינה_מלאכותית ו-Kafka!\",\n  \"authorId\": 1,\n  \"authorUsername\": \"demo_user\",\n  \"tags\": [\n    \"בינה_מלאכותית\",\n    \"kafka\"\n  ],\n  \"emit_kafka\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Returns enrichment eventType\", function () { pm.expect(data.event_type).to.be.oneOf([\"POST_ENRICHED\", \"CONTENT_FLAGGED\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Kafka Enrichment Worker Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/enrichment/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "enrichment",
+                "status"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Has worker status fields\", function () { pm.expect(pm.response.json()).to.have.property(\"kafka_auto_startup\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "LLMOps Metrics (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "metrics"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Has token and latency telemetry\", function () { pm.expect(data).to.have.property(\"active_model\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "LLMOps Metrics (Prometheus Format)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/metrics?format=prometheus",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "metrics"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "prometheus"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Returns Prometheus text\", function () { pm.expect(pm.response.text()).to.include(\"socialflow_ai_\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask Feed v2.0 (Corrective RAG + Citations)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/ask-feed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "ask-feed"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"מה הנושאים החמים בפיד על Spring Boot ו-Kafka?\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"CRAG fields present\", function () { pm.expect(data.answer).to.be.a(\"string\"); pm.expect(data.citations).to.be.an(\"array\"); pm.expect(data).to.have.property(\"retrieval_mode\"); pm.expect(data).to.have.property(\"corrected\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask Feed v2.0 Stream (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/ask-feed/stream",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "ask-feed",
+                "stream"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"סכם לי את הפוסטים האחרונים על בינה מלאכותית\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"SSE stream contains done event\", function () { pm.expect(pm.response.text()).to.include(\"event: done\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update AI Config (ADMIN Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "config"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key\": \"YOUR_GEMINI_API_KEY\",\n  \"model\": \"gemini-3.5-flash-lite\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK (ADMIN) or 403 Forbidden (USER)\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 403]); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

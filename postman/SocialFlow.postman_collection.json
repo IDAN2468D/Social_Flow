@@ -5,11 +5,42 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8088" },
-    { "key": "jwt_token", "value": "" },
-    { "key": "post_id", "value": "1" },
-    { "key": "notification_id", "value": "1" },
-    { "key": "media_key", "value": "uploads/1/avatar.png" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8088"
+    },
+    {
+      "key": "jwt_token",
+      "value": ""
+    },
+    {
+      "key": "post_id",
+      "value": "1"
+    },
+    {
+      "key": "notification_id",
+      "value": "1"
+    },
+    {
+      "key": "media_key",
+      "value": "uploads/1/avatar.png"
+    },
+    {
+      "key": "jwtToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "postId",
+      "value": "1"
+    },
+    {
+      "key": "cursor",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -24,9 +55,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200 || pm.response.code === 201) {",
-                  "  const data = pm.response.json();",
-                  "  if (data.token) { pm.collectionVariables.set('jwt_token', data.token); if (pm.environment && pm.environment.name) { pm.environment.set('jwt_token', data.token); } }",
+                  "pm.test(\"Status is 200 or 201\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "const data = pm.response.json();",
+                  "const token = data.token || data.accessToken;",
+                  "if (token) {",
+                  "  pm.collectionVariables.set(\"jwt_token\", token);",
+                  "  pm.collectionVariables.set(\"jwtToken\", token);",
+                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"jwt_token\", token); pm.environment.set(\"jwtToken\", token); }",
+                  "}",
+                  "if (data.refreshToken) {",
+                  "  pm.collectionVariables.set(\"refreshToken\", data.refreshToken);",
+                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"refreshToken\", data.refreshToken); }",
                   "}"
                 ]
               }
@@ -34,15 +73,26 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"demo_user\",\n  \"email\": \"demo_user@example.com\",\n  \"password\": \"YourPassword123!\",\n  \"fullName\": \"משתמש הדגמה\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
             }
           }
         },
@@ -54,10 +104,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  const data = pm.response.json();",
-                  "  const token = data.token || data.accessToken;",
-                  "  if (token) { pm.collectionVariables.set('jwt_token', token); if (pm.environment && pm.environment.name) { pm.environment.set('jwt_token', token); } }",
+                  "pm.test(\"Status is 200 or 201\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "const data = pm.response.json();",
+                  "const token = data.token || data.accessToken;",
+                  "if (token) {",
+                  "  pm.collectionVariables.set(\"jwt_token\", token);",
+                  "  pm.collectionVariables.set(\"jwtToken\", token);",
+                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"jwt_token\", token); pm.environment.set(\"jwtToken\", token); }",
+                  "}",
+                  "if (data.refreshToken) {",
+                  "  pm.collectionVariables.set(\"refreshToken\", data.refreshToken);",
+                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"refreshToken\", data.refreshToken); }",
                   "}"
                 ]
               }
@@ -65,15 +122,26 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"demo_user\",\n  \"password\": \"YourPassword123!\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
             }
           }
         },
@@ -83,8 +151,16 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/profile/demo_user",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "users", "profile", "demo_user"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "profile",
+                "demo_user"
+              ]
             }
           }
         },
@@ -93,8 +169,14 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -102,8 +184,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/profile",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "users", "profile"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "profile"
+              ]
             }
           }
         },
@@ -113,9 +202,21 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/search?q=demo",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "users", "search"],
-              "query": [{ "key": "q", "value": "demo" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "demo"
+                }
+              ]
             }
           }
         },
@@ -123,11 +224,24 @@
           "name": "מעקב אחרי משתמש",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/noa/follow",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "users", "noa", "follow"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "noa",
+                "follow"
+              ]
             }
           }
         },
@@ -135,11 +249,24 @@
           "name": "ביטול מעקב אחרי משתמש",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/users/noa/follow",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "users", "noa", "follow"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "noa",
+                "follow"
+              ]
             }
           }
         }
@@ -168,8 +295,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -177,8 +310,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts"
+              ]
             }
           }
         },
@@ -188,8 +327,15 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}"
+              ]
             }
           }
         },
@@ -198,8 +344,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -207,8 +359,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/comments",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}", "comments"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "comments"
+              ]
             }
           }
         },
@@ -217,8 +377,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -226,8 +392,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/repost",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}", "repost"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "repost"
+              ]
             }
           }
         },
@@ -235,11 +409,24 @@
           "name": "נעיצת או ביטול נעיצת פוסט",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/pin",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}", "pin"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "pin"
+              ]
             }
           }
         },
@@ -247,11 +434,23 @@
           "name": "מחיקת פוסט",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}"
+              ]
             }
           }
         },
@@ -261,8 +460,14 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/api/v1/stories",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "stories"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "stories"
+              ]
             }
           }
         }
@@ -277,8 +482,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -286,8 +497,16 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/reactions",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}", "reactions"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "reactions"
+              ]
             }
           }
         },
@@ -295,11 +514,24 @@
           "name": "סימון או ביטול לייק לפוסט",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/like",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}", "like"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "like"
+              ]
             }
           }
         },
@@ -307,11 +539,25 @@
           "name": "סיכום רגשות לפוסט",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/reactions/summary",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "posts", "{{post_id}}", "reactions", "summary"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "reactions",
+                "summary"
+              ]
             }
           }
         }
@@ -343,8 +589,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -352,8 +604,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/media/upload-url",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "media", "upload-url"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media",
+                "upload-url"
+              ]
             }
           }
         },
@@ -361,22 +620,48 @@
           "name": "מחיקת קובץ מדיה",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/media?key={{media_key}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "media"],
-              "query": [{ "key": "key", "value": "{{media_key}}" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media"
+              ],
+              "query": [
+                {
+                  "key": "key",
+                  "value": "{{media_key}}"
+                }
+              ]
             }
           }
         },
         {
           "name": "העלאת קובץ התמונה שלך בפועל (PUT ל-MinIO)",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "image/png" }],
-            "body": { "mode": "file", "file": {} },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/png"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {}
+            },
             "url": "{{upload_url}}"
           }
         },
@@ -384,11 +669,22 @@
           "name": "שליפת התמונות שהעליתי וכמות ההעלאות (GET)",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{jwt_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/media",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "media"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "media"
+              ]
             }
           }
         }
@@ -403,8 +699,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -412,8 +714,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/feed/events",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "feed", "events"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "feed",
+                "events"
+              ]
             }
           }
         },
@@ -423,11 +732,24 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/api/v1/feed/for-you?page=0&size=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "feed", "for-you"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "feed",
+                "for-you"
+              ],
               "query": [
-                { "key": "page", "value": "0" },
-                { "key": "size", "value": "20" }
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
               ]
             }
           }
@@ -437,15 +759,30 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "http://localhost:8088/api/v1/feed/analytics?userId=1",
               "protocol": "http",
-              "host": ["localhost"],
+              "host": [
+                "localhost"
+              ],
               "port": "8088",
-              "path": ["api", "v1", "feed", "analytics"],
-              "query": [{ "key": "userId", "value": "1" }]
+              "path": [
+                "api",
+                "v1",
+                "feed",
+                "analytics"
+              ],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "1"
+                }
+              ]
             }
           }
         }
@@ -461,9 +798,16 @@
             "url": {
               "raw": "http://localhost:8088/api/v1/ai/health",
               "protocol": "http",
-              "host": ["localhost"],
+              "host": [
+                "localhost"
+              ],
               "port": "8088",
-              "path": ["api", "v1", "ai", "health"]
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "health"
+              ]
             }
           }
         },
@@ -489,8 +833,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -499,11 +849,433 @@
             "url": {
               "raw": "http://localhost:8088/api/v1/ai/agent/run",
               "protocol": "http",
-              "host": ["localhost"],
+              "host": [
+                "localhost"
+              ],
               "port": "8088",
-              "path": ["api", "v1", "ai", "agent", "run"]
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "agent",
+                "run"
+              ]
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "Auth & Zero-Trust Lifecycle",
+      "description": "Refresh token rotation and single/all-session logout endpoints.",
+      "item": [
+        {
+          "name": "Refresh Access & Refresh Tokens",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Returns rotated token and refreshToken\", function () { pm.expect(data.token).to.be.a(\"string\"); pm.expect(data.refreshToken).to.be.a(\"string\"); });",
+                  "if (data.token) { pm.collectionVariables.set(\"jwt_token\", data.token); pm.collectionVariables.set(\"jwtToken\", data.token); if (pm.environment && pm.environment.name) { pm.environment.set(\"jwt_token\", data.token); pm.environment.set(\"jwtToken\", data.token); } }",
+                  "if (data.refreshToken) { pm.collectionVariables.set(\"refreshToken\", data.refreshToken); if (pm.environment && pm.environment.name) { pm.environment.set(\"refreshToken\", data.refreshToken); } }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout Current Session Family",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Logout message returned\", function () { pm.expect(pm.response.json().message).to.include(\"Logged out\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout All Sessions (?all=true)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout?all=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ],
+              "query": [
+                {
+                  "key": "all",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin & ES Reconciliation",
+      "description": "ADMIN-only outbox snapshot reindexing from PostgreSQL to Elasticsearch.",
+      "item": [
+        {
+          "name": "Reindex All Posts to Elasticsearch (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/admin/reindex?batchSize=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "admin",
+                "reindex"
+              ],
+              "query": [
+                {
+                  "key": "batchSize",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 202 Accepted (or 403 for non-ADMIN)\", function () { pm.expect(pm.response.code).to.be.oneOf([202, 403]); });",
+                  "if (pm.response.code === 202) { pm.expect(pm.response.json().status).to.eql(\"REINDEX_ENQUEUED\"); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Native ES 8.13 Search & Cursor Feeds",
+      "description": "search_after cursor pagination, fuzzy search, autocomplete suggest, and terms-aggregation facets.",
+      "item": [
+        {
+          "name": "Cursor Feed (For You via search_after)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/cursor?feedType=for-you&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "feed",
+                "cursor"
+              ],
+              "query": [
+                {
+                  "key": "feedType",
+                  "value": "for-you"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Cursor page structure\", function () { pm.expect(data.items).to.be.an(\"array\"); pm.expect(data).to.have.property(\"hasMore\"); });",
+                  "if (data.nextCursor) { pm.collectionVariables.set(\"cursor\", data.nextCursor); if (pm.environment && pm.environment.name) { pm.environment.set(\"cursor\", data.nextCursor); } }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cursor Search (with nextCursor)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/cursor?q=Spring&fuzzy=true&size=10&cursor={{cursor}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search",
+                "cursor"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Spring"
+                },
+                {
+                  "key": "fuzzy",
+                  "value": "true"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "cursor",
+                  "value": "{{cursor}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Returns items array\", function () { pm.expect(pm.response.json().items).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fuzzy Search (?fuzzy=true)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?q=Sprng&fuzzy=true&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Sprng"
+                },
+                {
+                  "key": "fuzzy",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Returns paginated content\", function () { pm.expect(pm.response.json().content).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Autocomplete Suggest",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/suggest?q=Spring&limit=8",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search",
+                "suggest"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Spring"
+                },
+                {
+                  "key": "limit",
+                  "value": "8"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Returns tags, users, and posts\", function () { pm.expect(data.tags).to.be.an(\"array\"); pm.expect(data.users).to.be.an(\"array\"); pm.expect(data.posts).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Facets (Tags, AI Tags, Categories, Sentiments)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/facets?limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search",
+                "facets"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Returns facet buckets\", function () { pm.expect(data.tags).to.be.an(\"array\"); pm.expect(data.aiTags).to.be.an(\"array\"); pm.expect(data.categories).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
