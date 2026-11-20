@@ -19,6 +19,10 @@ def _parse_int(value: str, default: int) -> int:
 class Config(BaseModel):
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    GEMINI_EMBEDDING_MODEL: str = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
+    EMBEDDING_DIMS: int = _parse_int(os.getenv("EMBEDDING_DIMS", "768"), 768)
+    ELASTICSEARCH_URI: str = os.getenv("ELASTICSEARCH_URI", "http://elasticsearch:9200").rstrip("/")
+    ELASTICSEARCH_POSTS_INDEX: str = os.getenv("ELASTICSEARCH_POSTS_INDEX", "posts")
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9095")
     KAFKA_AUTO_STARTUP: bool = _parse_bool(os.getenv("KAFKA_AUTO_STARTUP", "false"), False)
     KAFKA_CONSUMER_GROUP: str = os.getenv("KAFKA_CONSUMER_GROUP", "ai-enrichment-group")

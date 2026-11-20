@@ -38,8 +38,8 @@ public class PostService {
     private final PollVoteRepository pollVoteRepository;
     private final PostKafkaProducer postKafkaProducer;
 
-    private static final Pattern HASHTAG_PATTERN = Pattern.compile("#(\\w+)");
-    private static final Pattern MENTION_PATTERN = Pattern.compile("@(\\w+)");
+    private static final Pattern HASHTAG_PATTERN = Pattern.compile("#([\\p{L}\\p{N}_]+)");
+    private static final Pattern MENTION_PATTERN = Pattern.compile("@([\\p{L}\\p{N}_]+)");
 
     @Transactional
     public PostResponseDto createPost(CreatePostRequest request, UserPrincipal currentUser) {

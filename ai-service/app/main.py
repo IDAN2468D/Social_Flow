@@ -1,6 +1,7 @@
 import base64
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -8,7 +9,7 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,6 +23,7 @@ from app.guardrails import (
     resolve_authenticated_user_id,
 )
 from app.kafka_agent import kafka_enrichment_worker
+from app.rag_graph import crag_ask_feed_graph
 from app.telemetry import (
     get_correlation_id,
     log_structured,
@@ -330,42 +332,38 @@ async def _execute_ask_feed(
     resolved_user_id: int,
     authorization: Optional[str],
 ) -> Dict[str, Any]:
-    posts_context = req.posts or []
-    if not posts_context:
-        try:
-            feed_uri = _resolve_feed_service_uri()
-            headers = {"Authorization": authorization} if authorization else {}
-            cid = get_correlation_id()
-            if cid:
-                headers["X-Correlation-Id"] = cid
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                res = await client.get(
-                    f"{feed_uri}/api/v1/feed/for-you?userId={resolved_user_id}&page=0&size=20",
-                    headers=headers,
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    posts_context = (
-                        data.get("content", []) if isinstance(data, dict) else data
-                    )
-                else:
-                    log_structured(
-                        logging.WARNING,
-                        "ask_feed_upstream_non_200",
-                        status_code=res.status_code,
-                        user_id=resolved_user_id,
-                    )
-        except Exception as exc:
-            log_structured(
-                logging.WARNING,
-                "ask_feed_upstream_failed",
-                user_id=resolved_user_id,
-                error=redact_pii_text(str(exc), record_metric=False),
-            )
-
-    return await gemini_client.ask_feed_rag(
-        req.question, posts_context, user_id=resolved_user_id
-    )
+    initial_state = {
+        "question": req.question,
+        "user_id": resolved_user_id,
+        "authorization": authorization,
+        "provided_posts": req.posts or [],
+        "feed_service_uri": _resolve_feed_service_uri(),
+        "search_query": req.question,
+        "keywords": [],
+        "retries": 0,
+        "should_retry": False,
+        "retrieved_posts": [],
+        "relevant_posts": [],
+        "retrieval_mode": "hybrid_es_rrf",
+        "corrected": False,
+        "answer": "",
+        "citations": [],
+        "sources": [],
+        "model_used": gemini_client.model,
+        "guardrails": {},
+        "relevant_posts_count": 0,
+    }
+    result = await crag_ask_feed_graph.ainvoke(initial_state)
+    return {
+        "answer": result.get("answer", ""),
+        "relevant_posts_count": result.get("relevant_posts_count", 0),
+        "model_used": result.get("model_used", gemini_client.model),
+        "sources": result.get("sources", []),
+        "citations": result.get("citations", []),
+        "retrieval_mode": result.get("retrieval_mode", "hybrid_es_rrf"),
+        "corrected": bool(result.get("corrected", False)),
+        "guardrails": result.get("guardrails", {}),
+    }
 
 
 @app.post("/api/v1/ai/ask-feed")
@@ -381,6 +379,47 @@ async def ask_feed(
     )
     _enforce_rate_limit(resolved_user_id, x_user_role)
     return await _execute_ask_feed(req, resolved_user_id, authorization)
+
+
+@app.post("/api/v1/ai/ask-feed/stream")
+async def ask_feed_stream(
+    req: AskFeedRequest,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_auth_user_id: Optional[str] = Header(default=None, alias="X-Auth-UserId"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
+    authorization: Optional[str] = Header(default=None),
+):
+    resolved_user_id = resolve_authenticated_user_id(
+        x_user_id, x_auth_user_id, req.user_id or 1
+    )
+    _enforce_rate_limit(resolved_user_id, x_user_role)
+
+    async def _event_stream():
+        def _sse(event_name: str, data: Dict[str, Any]) -> str:
+            return f"event: {event_name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+        yield _sse("status", {"stage": "planning", "question": req.question})
+        result = await _execute_ask_feed(req, resolved_user_id, authorization)
+        yield _sse(
+            "retrieval",
+            {
+                "retrieval_mode": result["retrieval_mode"],
+                "corrected": result["corrected"],
+                "relevant_posts_count": result["relevant_posts_count"],
+                "citations": result["citations"],
+            },
+        )
+        answer = result.get("answer", "")
+        chunk_size = 48
+        for i in range(0, len(answer), chunk_size):
+            yield _sse("token", {"delta": answer[i : i + chunk_size]})
+        yield _sse("done", result)
+
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/v1/ai/chat-reply")

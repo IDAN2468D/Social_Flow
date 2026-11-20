@@ -33,6 +33,7 @@ from app.config import config
 from app.gemini_client import gemini_client
 from app.guardrails import detect_prompt_injection, redact_pii_text
 from app.telemetry import log_structured, telemetry
+from app.vector_store import upsert_post_embedding
 
 # Deterministic severe pre-screen patterns (phishing/scam, extreme flood, explicit violent threats)
 _SEVERE_PRESCREEN_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
@@ -411,6 +412,18 @@ async def publish_enrichment_node(state: EnrichmentTriageState) -> Dict[str, Any
                 f"Failed to publish {decision_event_type} for post #{state['post_id']} to {config.AI_ENRICHMENT_TOPIC}"
             )
         published_topic = config.AI_ENRICHMENT_TOPIC
+
+    if is_safe and decision_event_type == "POST_ENRICHED":
+        # Best-effort 768-dim embedding upsert into ES `posts` index (non-fatal if ES is offline)
+        await upsert_post_embedding(
+            post_id=state["post_id"],
+            content=state.get("content", ""),
+            tags=state.get("existing_tags") or [],
+            ai_tags=ai_tags,
+            ai_summary=summary,
+            author_id=state.get("author_id"),
+            author_username=state.get("author_username"),
+        )
 
     telemetry.record_node_span(
         graph_name="enrichment_triage",

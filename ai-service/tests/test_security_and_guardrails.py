@@ -105,6 +105,13 @@ def test_gateway_headers_override_client_supplied_user_id(monkeypatch):
                 return FakeResponse(200, {"content": []})
             return FakeResponse(200, [])
 
+    import app.rag_graph as rag_mod
+
+    async def _es_offline(query, top_k=10, user_id=None):
+        return [], "es_unavailable"
+
+    monkeypatch.setattr(rag_mod, "hybrid_search", _es_offline)
+    monkeypatch.setattr(rag_mod.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(main_mod.httpx, "AsyncClient", FakeAsyncClient)
 
     client = TestClient(main_mod.app)
