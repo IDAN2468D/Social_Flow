@@ -42,8 +42,37 @@ services:
       KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 104857600
+      KAFKA_LOG_SEGMENT_BYTES: 16777216
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:29092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    networks:
+      - socialflow-net
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: socialflow-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      "
+      for topic in post-events user-events feed-events reaction-events ai-enrichment-events; do
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic $$topic --partitions 3 --replication-factor 1
+      done
+      echo 'All Kafka topics initialized!'
+      "
     networks:
       - socialflow-net
 
@@ -242,6 +271,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: gemini-3.5-flash-lite
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      API_GATEWAY_URL: http://api-gateway:8088
     depends_on:
       - kafka
     networks:
@@ -269,6 +299,7 @@ volumes:
   es_data:
   minio_data:
   elasticsearch_data:
+  kafka_data:
 
 networks:
   socialflow-net:

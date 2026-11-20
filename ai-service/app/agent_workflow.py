@@ -4,8 +4,10 @@ Orchestrates autonomous content creation, trend discovery, content moderation, a
 """
 
 import os
+import json
 from typing import TypedDict, List, Dict, Any, Optional
 import httpx
+from kafka import KafkaProducer
 from langgraph.graph import StateGraph, START, END
 from app.gemini_client import gemini_client
 from app.config import config
@@ -20,6 +22,7 @@ class AgentPostState(TypedDict):
     suggested_poll: Optional[Dict[str, Any]]
     moderation_status: Dict[str, Any]
     user_approved: bool
+    auth_header: Optional[str]
     published_post_id: Optional[int]
     logs: List[str]
     error: Optional[str]
@@ -148,6 +151,36 @@ async def moderate_content_node(state: AgentPostState) -> Dict[str, Any]:
         "logs": logs
     }
 
+def _emit_ai_enrichment_event(post_id: Optional[int], state: AgentPostState) -> bool:
+    """Publishes an AI enrichment event to Kafka's ai-enrichment-events topic."""
+    try:
+        producer = KafkaProducer(
+            bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS,
+            value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
+            key_serializer=lambda k: str(k).encode("utf-8"),
+            request_timeout_ms=5000,
+        )
+        event_payload = {
+            "eventType": "AI_ENRICHMENT_CREATED",
+            "postId": post_id,
+            "userId": state.get("user_id", 1),
+            "topic": state.get("topic"),
+            "tags": state.get("suggested_tags", []),
+            "moderationStatus": state.get("moderation_status", {}),
+        }
+        future = producer.send(
+            config.AI_ENRICHMENT_TOPIC,
+            key=str(post_id or state.get("user_id", 1)),
+            value=event_payload,
+        )
+        future.get(timeout=5)
+        producer.flush()
+        producer.close()
+        return True
+    except Exception:
+        return False
+
+
 async def publish_post_node(state: AgentPostState) -> Dict[str, Any]:
     """Node 4: Publishes the approved post to SocialFlow post-service."""
     logs = list(state.get("logs", []))
@@ -175,20 +208,26 @@ async def publish_post_node(state: AgentPostState) -> Dict[str, Any]:
     post_id = None
     try:
         user_id = state.get("user_id", 1)
+        headers = {
+            "Content-Type": "application/json",
+            "X-Auth-UserId": str(user_id),
+            "X-Auth-Username": "agent-user"
+        }
+        if state.get("auth_header"):
+            headers["Authorization"] = state["auth_header"]
+
         async with httpx.AsyncClient(timeout=8.0) as client:
             res = await client.post(
                 f"{GATEWAY_BASE}/api/v1/posts",
                 json=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Auth-UserId": str(user_id),
-                    "X-Auth-Username": "agent-user"
-                }
+                headers=headers
             )
             if res.status_code in (200, 201):
                 post_data = res.json()
                 post_id = post_data.get("id") or post_data.get("postId")
                 logs.append(f"🎉 הפוסט פורסם בהצלחה בפיד! מזהה פוסט: #{post_id}")
+                if _emit_ai_enrichment_event(post_id, state):
+                    logs.append(f"📡 אירוע AI שודר לטופיק '{config.AI_ENRICHMENT_TOPIC}' ב-Kafka.")
             else:
                 logs.append(f"❌ שגיאה בפרסום: סטטוס HTTP {res.status_code}")
     except Exception as e:

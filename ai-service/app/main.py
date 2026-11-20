@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -93,7 +93,7 @@ async def chat_reply(req: ChatReplyRequest):
     return {"reply": reply}
 
 @app.post("/api/v1/ai/agent/run")
-async def run_socialflow_agent(req: AgentRunRequest):
+async def run_socialflow_agent(req: AgentRunRequest, request: Request):
     """
     Executes the autonomous SocialFlow LangGraph agent:
     1. Researches feed trends
@@ -111,6 +111,7 @@ async def run_socialflow_agent(req: AgentRunRequest):
         "suggested_poll": None,
         "moderation_status": {},
         "user_approved": req.user_approved,
+        "auth_header": request.headers.get("authorization"),
         "published_post_id": None,
         "logs": [],
         "error": None
