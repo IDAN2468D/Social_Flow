@@ -261,6 +261,110 @@ public class FeedService {
         }
     }
 
+    public Map<String, Object> getUserAnalytics(Long userId) {
+        if (userId == null) {
+            return emptyUserAnalytics(null);
+        }
+        try {
+            Page<PostDocument> userPostsPage = postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(
+                    userId, PageRequest.of(0, 500));
+            List<PostDocument> posts = (userPostsPage != null && userPostsPage.getContent() != null)
+                    ? userPostsPage.getContent()
+                    : Collections.emptyList();
+
+            long totalLikes = 0L;
+            long totalComments = 0L;
+            long totalReposts = 0L;
+            Map<String, Long> tagCounts = new HashMap<>();
+            PostDocument topPostDoc = null;
+            double topEngagement = -1.0;
+
+            for (PostDocument doc : posts) {
+                if (doc == null) {
+                    continue;
+                }
+                totalLikes += doc.getLikesCount();
+                totalComments += doc.getCommentsCount();
+                totalReposts += doc.getRepostsCount();
+
+                double engagement = calculateInteractionScore(doc);
+                if (topPostDoc == null || engagement > topEngagement) {
+                    topEngagement = engagement;
+                    topPostDoc = doc;
+                }
+
+                if (doc.getTags() != null) {
+                    for (String tag : doc.getTags()) {
+                        if (tag == null || tag.isBlank()) {
+                            continue;
+                        }
+                        String cleanTag = tag.trim().toLowerCase();
+                        tagCounts.put(cleanTag, tagCounts.getOrDefault(cleanTag, 0L) + 1L);
+                    }
+                }
+            }
+
+            List<Map<String, Object>> topTags = tagCounts.entrySet().stream()
+                    .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                    .limit(5)
+                    .map(entry -> {
+                        Map<String, Object> tagMap = new LinkedHashMap<>();
+                        tagMap.put("tag", entry.getKey());
+                        tagMap.put("count", entry.getValue());
+                        return tagMap;
+                    })
+                    .collect(Collectors.toList());
+
+            Map<String, Object> topPost = null;
+            if (topPostDoc != null) {
+                topPost = new LinkedHashMap<>();
+                topPost.put("id", topPostDoc.getId());
+                topPost.put("postId", topPostDoc.getPostId());
+                topPost.put("content", topPostDoc.getContent());
+                topPost.put("likesCount", topPostDoc.getLikesCount());
+                topPost.put("commentsCount", topPostDoc.getCommentsCount());
+                topPost.put("repostsCount", topPostDoc.getRepostsCount());
+                topPost.put("engagementScore", topEngagement);
+                topPost.put("createdAt", topPostDoc.getCreatedAt());
+            }
+
+            long followersCount = followerRelationRepository.countByFollowingId(userId);
+            long followingCount = followerRelationRepository.countByFollowerId(userId);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("userId", userId);
+            result.put("totalPosts", posts.size());
+            result.put("totalLikes", totalLikes);
+            result.put("totalComments", totalComments);
+            result.put("totalReposts", totalReposts);
+            result.put("followersCount", followersCount);
+            result.put("followingCount", followingCount);
+            result.put("topTags", topTags);
+            result.put("topPost", topPost);
+            return result;
+        } catch (Exception e) {
+            return emptyUserAnalytics(userId);
+        }
+    }
+
+    private double calculateInteractionScore(PostDocument doc) {
+        return (doc.getLikesCount() * 2.0) + (doc.getCommentsCount() * 3.0) + (doc.getRepostsCount() * 4.0);
+    }
+
+    private Map<String, Object> emptyUserAnalytics(Long userId) {
+        Map<String, Object> empty = new LinkedHashMap<>();
+        empty.put("userId", userId);
+        empty.put("totalPosts", 0);
+        empty.put("totalLikes", 0L);
+        empty.put("totalComments", 0L);
+        empty.put("totalReposts", 0L);
+        empty.put("followersCount", 0L);
+        empty.put("followingCount", 0L);
+        empty.put("topTags", Collections.emptyList());
+        empty.put("topPost", null);
+        return empty;
+    }
+
     private void addCandidate(Map<String, PostDocument> candidateMap, PostDocument doc) {
         if (doc == null) {
             return;

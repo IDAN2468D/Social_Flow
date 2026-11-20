@@ -237,6 +237,25 @@
               "path": ["api", "v1", "ai", "voice", "voices"]
             }
           }
+        },
+        {
+          "name": "עוזר קולי 5 — תדרוך יומי קולי (Daily Briefing)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 3,\n  \"voice\": \"he-IL-HilaNeural\",\n  \"return_audio\": \"json\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/voice/briefing",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ai", "voice", "briefing"]
+            }
+          }
         }
       ]
     }

@@ -78,3 +78,76 @@ def test_voice_voices_and_intent_routing():
 
     rag_route = asyncio.run(classify_voice_intent("מה חדש בפיד של SocialFlow?"))
     assert rag_route["intent"] == "rag"
+
+
+def test_voice_daily_briefing_endpoint(monkeypatch):
+    """Verify POST /api/v1/ai/voice/briefing returns Hebrew briefing JSON and MP3 audio"""
+    from unittest.mock import AsyncMock
+    from fastapi.testclient import TestClient
+    import app.main as main_mod
+    from app.voice_service import generate_daily_briefing
+
+    sample_posts = [
+        {"postId": 10, "authorUsername": "noa", "content": "השקנו היום פיצ'ר חדש ב-SocialFlow!"},
+        {"postId": 11, "authorUsername": "daniel", "content": "מיקרו-שירותים עם FastAPI ו-Kafka."},
+    ]
+    sample_notifs = [
+        {"id": 1, "message": "נועה לוי אהבה את הפוסט שלך"},
+    ]
+
+    fallback_text = asyncio.run(generate_daily_briefing(sample_posts, sample_notifs))
+    assert "SocialFlow" in fallback_text
+    assert "2 פוסטים" in fallback_text
+    assert "1 התראות" in fallback_text
+
+    class FakeResponse:
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            if "feed" in url:
+                return FakeResponse(200, {"content": sample_posts})
+            if "notifications" in url:
+                return FakeResponse(200, sample_notifs)
+            return FakeResponse(404, {})
+
+    monkeypatch.setattr(main_mod.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(main_mod, "synthesize_speech", AsyncMock(return_value=b"ID3-MOCK-MP3"))
+
+    client = TestClient(main_mod.app)
+
+    res_json = client.post(
+        "/api/v1/ai/voice/briefing",
+        json={"user_id": 3, "voice": "female", "return_audio": "json"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    assert res_json.status_code == 200
+    body = res_json.json()
+    assert body["posts_analyzed"] == 2
+    assert body["notifications_count"] == 1
+    assert body["voice_used"] == "he-IL-HilaNeural"
+    assert body["audio_size_bytes"] == len(b"ID3-MOCK-MP3")
+    assert len(body["audio_base64"]) > 0
+    assert len(body["briefing_text"]) > 0
+
+    res_mp3 = client.post(
+        "/api/v1/ai/voice/briefing?user_id=3&voice=male&return_audio=mp3",
+    )
+    assert res_mp3.status_code == 200
+    assert res_mp3.headers["content-type"] == "audio/mpeg"
+    assert res_mp3.headers["x-voice-used"] == "he-IL-AvriNeural"
+    assert res_mp3.content == b"ID3-MOCK-MP3"

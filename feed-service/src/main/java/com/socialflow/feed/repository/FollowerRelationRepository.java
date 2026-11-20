@@ -9,6 +9,8 @@ import java.util.List;
 @Repository
 public interface FollowerRelationRepository extends JpaRepository<FollowerRelation, Long> {
     List<FollowerRelation> findByFollowerId(Long followerId);
+    long countByFollowerId(Long followerId);
+    long countByFollowingId(Long followingId);
     boolean existsByFollowerIdAndFollowingId(Long followerId, Long followingId);
     void deleteByFollowerIdAndFollowingId(Long followerId, Long followingId);
 }

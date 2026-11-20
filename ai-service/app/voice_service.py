@@ -9,7 +9,10 @@ import io
 import json
 from typing import Any, Dict, List, Optional
 import httpx
-import edge_tts
+try:
+    import edge_tts
+except ImportError:
+    edge_tts = None
 from app.gemini_client import gemini_client
 
 VOICE_ALIASES: Dict[str, str] = {
@@ -40,6 +43,8 @@ def resolve_voice(voice: Optional[str]) -> str:
 
 async def synthesize_speech(text: str, voice: Optional[str] = None) -> bytes:
     """Converts text to natural neural MP3 audio using edge-tts."""
+    if edge_tts is None:
+        raise RuntimeError("edge-tts package is not installed")
     chosen_voice = resolve_voice(voice)
     clean_text = (text or "").strip()
     if not clean_text:
@@ -178,3 +183,97 @@ async def classify_voice_intent(text: str) -> Dict[str, Any]:
         "topic": text.strip(),
         "auto_publish": fallback_auto_publish,
     }
+
+
+def _build_fallback_daily_briefing(
+    posts_context: List[Dict[str, Any]],
+    notifications_context: List[Dict[str, Any]],
+) -> str:
+    """Builds a clean, friendly Hebrew daily briefing without calling Gemini."""
+    posts_count = len(posts_context)
+    notifs_count = len(notifications_context)
+
+    parts = ["שלום! הנה התדרוך היומי שלך מ-SocialFlow."]
+    if posts_count > 0:
+        highlights = []
+        for p in posts_context[:2]:
+            author = p.get("authorUsername") or "משתמש"
+            snippet = (p.get("content") or "").strip().replace("\n", " ")
+            if len(snippet) > 70:
+                snippet = snippet[:67] + "..."
+            if snippet:
+                highlights.append(f"{author} כתב: {snippet}")
+        parts.append(f"בפיד שלך יש {posts_count} פוסטים אחרונים.")
+        if highlights:
+            parts.append("בין הבולטים: " + " ".join(highlights))
+    else:
+        parts.append("הפיד שלך שקט כרגע ואין פוסטים חדשים.")
+
+    if notifs_count > 0:
+        parts.append(f"בנוסף, מחכות לך {notifs_count} התראות חדשות.")
+    else:
+        parts.append("אין לך התראות חדשות כרגע.")
+
+    parts.append("שיהיה לך יום נפלא!")
+    return " ".join(parts)
+
+
+async def generate_daily_briefing(
+    posts_context: List[Dict[str, Any]],
+    notifications_context: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+    """
+    Generates a concise, friendly Hebrew daily briefing summarizing recent feed posts
+    and user notifications using Gemini (with a clean Hebrew fallback if API key is empty).
+    """
+    posts = posts_context or []
+    notifications = notifications_context or []
+
+    if not gemini_client.api_key:
+        return _build_fallback_daily_briefing(posts, notifications)
+
+    post_lines = []
+    for i, p in enumerate(posts[:10], start=1):
+        author = p.get("authorUsername") or "משתמש"
+        content = (p.get("content") or "").strip().replace("\n", " ")
+        if content:
+            post_lines.append(f"{i}. @{author}: {content[:160]}")
+
+    notif_lines = []
+    for i, n in enumerate(notifications[:10], start=1):
+        msg = (n.get("message") or n.get("title") or n.get("content") or n.get("type") or "").strip()
+        if msg:
+            notif_lines.append(f"{i}. {msg[:120]}")
+
+    posts_block = "\n".join(post_lines) if post_lines else "אין פוסטים אחרונים."
+    notifs_block = "\n".join(notif_lines) if notif_lines else "אין התראות חדשות."
+
+    prompt = f"""
+אתה העוזר הקולי האישי של המשתמש ברשת החברתית SocialFlow.
+כתוב תדרוך יומי קצר, ידידותי וטבעי בעברית (עד 4-5 משפטים) שמתאים להקראה בקול (ללא סימני Markdown, ללא כוכביות וללא אימוג'ים).
+
+פוסטים אחרונים בפיד ({len(posts)} בסך הכל):
+{posts_block}
+
+התראות אחרונות ({len(notifications)} בסך הכל):
+{notifs_block}
+
+החזר רק את טקסט התדרוך המוכן להקראה.
+"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_client.model}:generateContent?key={gemini_client.api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.5},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            res = await client.post(url, json=payload)
+            if res.status_code == 200:
+                text = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                if text:
+                    return text
+    except Exception:
+        pass
+
+    return _build_fallback_daily_briefing(posts, notifications)

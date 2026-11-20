@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, Header, UploadFile, File, Form, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -13,6 +13,7 @@ from app.agent_workflow import socialflow_agent
 from app.voice_service import (
     AVAILABLE_VOICES,
     classify_voice_intent,
+    generate_daily_briefing,
     resolve_voice,
     synthesize_speech,
     transcribe_audio,
@@ -80,22 +81,26 @@ async def get_smart_replies(req: SmartRepliesRequest):
     replies = await gemini_client.generate_smart_replies(req.content)
     return {"replies": replies}
 
+def _resolve_feed_service_uri() -> str:
+    on_render = os.getenv("RENDER", "").lower() == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
+    feed_uri = os.getenv("FEED_SERVICE_URI")
+    if feed_uri:
+        return feed_uri.rstrip("/")
+    hostport = os.getenv("FEED_SERVICE_HOSTPORT", "")
+    if on_render and (not hostport or "." not in hostport.split(":")[0]):
+        return "https://socialflow-feed-service.onrender.com"
+    if hostport:
+        return f"http://{hostport}"
+    return "http://feed-service:8083"
+
+
 @app.post("/api/v1/ai/ask-feed")
 async def ask_feed(req: AskFeedRequest):
     posts_context = req.posts or []
     # If no posts provided directly in the request, try fetching recent feed from feed-service or post-service
     if not posts_context:
         try:
-            on_render = os.getenv("RENDER", "").lower() == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
-            feed_uri = os.getenv("FEED_SERVICE_URI")
-            if not feed_uri:
-                hostport = os.getenv("FEED_SERVICE_HOSTPORT", "")
-                if on_render and (not hostport or "." not in hostport.split(":")[0]):
-                    feed_uri = "https://socialflow-feed-service.onrender.com"
-                elif hostport:
-                    feed_uri = f"http://{hostport}"
-                else:
-                    feed_uri = "http://feed-service:8083"
+            feed_uri = _resolve_feed_service_uri()
             async with httpx.AsyncClient(timeout=4.0) as client:
                 res = await client.get(f"{feed_uri}/api/v1/feed/for-you?userId=1&page=0&size=20")
                 if res.status_code == 200:
@@ -297,4 +302,108 @@ async def voice_assistant(
     if audio_bytes_out:
         response_body["audio_base64"] = base64.b64encode(audio_bytes_out).decode("utf-8")
     response_body.update(extra_payload)
+    return response_body
+
+
+@app.post("/api/v1/ai/voice/briefing")
+async def voice_daily_briefing(
+    request: Request,
+    user_id: Optional[int] = Query(default=None),
+    voice: Optional[str] = Query(default=None),
+    return_audio: Optional[str] = Query(default=None),
+    authorization: Optional[str] = Header(default=None),
+):
+    """
+    Generates a personalized Hebrew Voice Daily Briefing from recent feed posts
+    and user notifications, then synthesizes MP3 speech via edge-tts.
+    Accepts JSON body, form data, or query parameters.
+    """
+    body_data: Dict[str, Any] = {}
+    content_type = (request.headers.get("content-type") or "").lower()
+    if "application/json" in content_type:
+        try:
+            parsed = await request.json()
+            if isinstance(parsed, dict):
+                body_data = parsed
+        except Exception:
+            pass
+    elif "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        try:
+            form = await request.form()
+            body_data = dict(form)
+        except Exception:
+            pass
+
+    raw_user_id = user_id if user_id is not None else body_data.get("user_id", 1)
+    try:
+        resolved_user_id = int(raw_user_id)
+    except (TypeError, ValueError):
+        resolved_user_id = 1
+
+    resolved_voice_param = voice if voice is not None else (body_data.get("voice") or "he-IL-HilaNeural")
+    resolved_return_audio = return_audio if return_audio is not None else (body_data.get("return_audio") or "json")
+
+    headers = {"Authorization": authorization} if authorization else {}
+
+    posts_context: List[Dict[str, Any]] = []
+    try:
+        feed_uri = _resolve_feed_service_uri()
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            res = await client.get(
+                f"{feed_uri}/api/v1/feed/for-you?userId={resolved_user_id}&page=0&size=20",
+                headers=headers,
+            )
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, dict):
+                    posts_context = data.get("content", [])
+                elif isinstance(data, list):
+                    posts_context = data
+    except Exception:
+        pass
+
+    notifications_context: List[Dict[str, Any]] = []
+    try:
+        notif_uri = os.getenv("NOTIFICATION_SERVICE_URI") or "http://notification-service:8085/api/v1/notifications"
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            res = await client.get(notif_uri, headers=headers)
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, list):
+                    notifications_context = data
+                elif isinstance(data, dict):
+                    notifications_context = data.get("content") or data.get("notifications") or []
+    except Exception:
+        pass
+
+    briefing_text = await generate_daily_briefing(posts_context, notifications_context)
+    chosen_voice = resolve_voice(str(resolved_voice_param))
+
+    audio_bytes_out = b""
+    tts_warning: Optional[str] = None
+    try:
+        audio_bytes_out = await synthesize_speech(briefing_text, chosen_voice)
+    except Exception as e:
+        tts_warning = str(e)
+
+    if str(resolved_return_audio).strip().lower() == "mp3" and audio_bytes_out:
+        return Response(
+            content=audio_bytes_out,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": 'inline; filename="socialflow-daily-briefing.mp3"',
+                "X-Voice-Used": chosen_voice,
+            },
+        )
+
+    response_body: Dict[str, Any] = {
+        "briefing_text": briefing_text,
+        "posts_analyzed": len(posts_context),
+        "notifications_count": len(notifications_context),
+        "voice_used": chosen_voice,
+        "audio_size_bytes": len(audio_bytes_out),
+        "audio_base64": base64.b64encode(audio_bytes_out).decode("utf-8") if audio_bytes_out else "",
+    }
+    if tts_warning:
+        response_body["tts_warning"] = tts_warning
     return response_body
