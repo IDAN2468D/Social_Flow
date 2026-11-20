@@ -145,4 +145,26 @@ public class FeedController {
             feedKafkaProducer.emitFeedEvent(eventType, key, details);
         }
     }
+
+    @GetMapping("/analytics")
+    public ResponseEntity<Map<String, Object>> getUserAnalytics(
+            @RequestParam(required = false) Long userId,
+            @RequestHeader(value = "X-Auth-UserId", required = false) String authUserIdHeader) {
+        Long resolvedUserId = resolveUserId(userId, authUserIdHeader);
+        return ResponseEntity.ok(feedService.getUserAnalytics(resolvedUserId));
+    }
+
+    private Long resolveUserId(Long userId, String authUserIdHeader) {
+        if (userId != null) {
+            return userId;
+        }
+        if (authUserIdHeader != null && !authUserIdHeader.isBlank()) {
+            try {
+                return Long.parseLong(authUserIdHeader.trim());
+            } catch (NumberFormatException ignored) {
+                // Fall back to default user ID if header is malformed
+            }
+        }
+        return 1L;
+    }
 }
