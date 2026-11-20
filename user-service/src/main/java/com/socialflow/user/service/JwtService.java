@@ -11,6 +11,7 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
@@ -30,15 +31,28 @@ public class JwtService {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userId", userId);
         extraClaims.put("email", email);
-        extraClaims.put("role", role != null ? role : "USER");
+        extraClaims.put("role", normalizeRole(role));
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .claims(extraClaims)
                 .subject(username)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    public String extractJti(String token) {
+        return extractClaim(token, Claims::getId);
+    }
+
+    private String normalizeRole(String rawRole) {
+        if (rawRole == null || rawRole.isBlank()) {
+            return "USER";
+        }
+        String normalized = rawRole.trim().toUpperCase();
+        return normalized.startsWith("ROLE_") ? normalized.substring(5) : normalized;
     }
 
     public String extractUsername(String token) {

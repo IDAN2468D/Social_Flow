@@ -10,6 +10,11 @@ import java.security.Principal;
 public class UserPrincipal implements Principal {
     private final Long userId;
     private final String username;
+    private final String role;
+
+    public UserPrincipal(Long userId, String username) {
+        this(userId, username, "USER");
+    }
 
     @Override
     public String getName() {

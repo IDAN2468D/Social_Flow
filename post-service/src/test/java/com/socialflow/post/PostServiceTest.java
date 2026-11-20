@@ -384,4 +384,30 @@ class PostServiceTest {
         verify(postRepository, times(1)).delete(post);
         verify(postKafkaProducer, times(1)).emitPostDeleted(any(PostDeletedEvent.class));
     }
+
+    @Test
+    @DisplayName("createPost extracts Unicode Hebrew hashtags and mentions alongside ASCII ones")
+    void createPost_ExtractsHebrewHashtagsAndMentions() {
+        CreatePostRequest request = CreatePostRequest.builder()
+                .content("פוסט חדש על #בינה_מלאכותית וגם #Java21 עם @עידן ו-@noa_1!")
+                .visibility("PUBLIC")
+                .build();
+
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> {
+            Post p = invocation.getArgument(0);
+            p.setId(55L);
+            p.setCreatedAt(LocalDateTime.now());
+            return p;
+        });
+
+        PostResponseDto result = postService.createPost(request, testUser);
+
+        assertThat(result.getTags()).containsExactlyInAnyOrder("בינה_מלאכותית", "java21");
+        assertThat(result.getMentions()).containsExactlyInAnyOrder("עידן", "noa_1");
+
+        ArgumentCaptor<PostCreatedEvent> eventCaptor = ArgumentCaptor.forClass(PostCreatedEvent.class);
+        verify(postKafkaProducer).emitPostCreated(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getTags()).containsExactlyInAnyOrder("בינה_מלאכותית", "java21");
+        assertThat(eventCaptor.getValue().getMentions()).containsExactlyInAnyOrder("עידן", "noa_1");
+    }
 }

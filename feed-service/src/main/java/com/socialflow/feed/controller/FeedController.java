@@ -1,6 +1,7 @@
 package com.socialflow.feed.controller;
 
 import com.socialflow.feed.document.PostDocument;
+import com.socialflow.feed.dto.CursorPageResponse;
 import com.socialflow.feed.dto.TrendingTagDto;
 import com.socialflow.feed.service.FeedKafkaProducer;
 import com.socialflow.feed.service.FeedService;
@@ -60,6 +61,19 @@ public class FeedController {
         Page<PostDocument> result = feedService.getTrendingFeed(page, size);
         emitIfPresent("FEED_TRENDING_VIEWED", "trending", Map.of(
                 "feedType", "TRENDING", "page", page, "size", size, "resultsCount", result.getNumberOfElements()
+        ));
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/cursor")
+    public ResponseEntity<CursorPageResponse<PostDocument>> getCursorFeed(
+            @RequestParam(defaultValue = "for-you") String feedType,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "10") int size) {
+        CursorPageResponse<PostDocument> result = feedService.getFeedCursor(feedType, userId, cursor, size);
+        emitIfPresent("FEED_CURSOR_VIEWED", "cursor:" + feedType, Map.of(
+                "feedType", feedType, "size", size, "resultsCount", result.getSize()
         ));
         return ResponseEntity.ok(result);
     }

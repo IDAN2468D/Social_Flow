@@ -26,6 +26,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 @Component
 public class JwtAuthFilter implements GlobalFilter, Ordered {
@@ -85,7 +86,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
         if (token == null || token.isBlank()) {
             if (isPublic) {
-                return chain.filter(exchange);
+                return chain.filter(exchange.mutate().request(stripIdentityHeaders(request)).build());
             }
             log.warn("Unauthorized access attempt to {}: Missing JWT token", path);
             return onError(exchange, HttpStatus.UNAUTHORIZED, "Missing JWT authentication token or cookie");
@@ -99,18 +100,29 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             Object emailObj = claims.get("email");
             Object roleObj = claims.get("role");
 
-            String userIdStr = userIdObj != null ? String.valueOf(userIdObj) : "1";
-            String emailStr = emailObj != null ? String.valueOf(emailObj) : "";
+            if (username == null || username.isBlank() || userIdObj == null) {
+                if (isPublic) {
+                    return chain.filter(exchange.mutate().request(stripIdentityHeaders(request)).build());
+                }
+                log.warn("Unauthorized access attempt to {}: JWT missing required identity claims", path);
+                return onError(exchange, HttpStatus.UNAUTHORIZED, "Invalid JWT token: missing required identity claims");
+            }
+
+            String userIdStr = String.valueOf(userIdObj).trim();
+            String emailStr = emailObj != null ? String.valueOf(emailObj).trim() : "";
             String roleStr = normalizeRole(roleObj != null ? String.valueOf(roleObj) : "USER");
 
-            // 4. Mutate Request and Forward Identity Headers to downstream microservices
+            // 4. Strip any client-spoofed X-User-* / X-Auth-* headers and replace with verified identity headers
             ServerHttpRequest mutatedRequest = request.mutate()
-                    .header("X-User-Id", userIdStr)
-                    .header("X-Auth-UserId", userIdStr)
-                    .header("X-User-Email", emailStr)
-                    .header("X-User-Name", username)
-                    .header("X-Auth-Username", username)
-                    .header("X-User-Role", roleStr)
+                    .headers(headers -> {
+                        removeUntrustedIdentityHeaders(headers);
+                        headers.set("X-User-Id", userIdStr);
+                        headers.set("X-Auth-UserId", userIdStr);
+                        headers.set("X-User-Email", emailStr);
+                        headers.set("X-User-Name", username);
+                        headers.set("X-Auth-Username", username);
+                        headers.set("X-User-Role", roleStr);
+                    })
                     .build();
 
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
@@ -118,11 +130,27 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         } catch (Exception e) {
             if (isPublic) {
                 log.debug("Ignoring invalid/expired JWT token on public path {}: {}", path, e.getMessage());
-                return chain.filter(exchange);
+                return chain.filter(exchange.mutate().request(stripIdentityHeaders(request)).build());
             }
             log.error("Invalid JWT token for path {}: {}", path, e.getMessage());
             return onError(exchange, HttpStatus.UNAUTHORIZED, "Invalid or expired JWT token: " + e.getMessage());
         }
+    }
+
+    private ServerHttpRequest stripIdentityHeaders(ServerHttpRequest request) {
+        return request.mutate()
+                .headers(this::removeUntrustedIdentityHeaders)
+                .build();
+    }
+
+    private void removeUntrustedIdentityHeaders(HttpHeaders headers) {
+        List<String> keysToRemove = headers.keySet().stream()
+                .filter(name -> {
+                    String lower = name.toLowerCase(Locale.ROOT);
+                    return lower.startsWith("x-user-") || lower.startsWith("x-auth-");
+                })
+                .toList();
+        keysToRemove.forEach(headers::remove);
     }
 
     private boolean isPublicRequest(HttpMethod method, String path) {

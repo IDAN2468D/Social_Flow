@@ -75,6 +75,28 @@ public class PostDocument {
     @Field(type = FieldType.Double)
     private double engagementScore;
 
+    @Field(type = FieldType.Keyword)
+    private List<String> aiTags;
+
+    @Field(type = FieldType.Keyword)
+    private String sentiment;
+
+    @Field(type = FieldType.Text)
+    private String aiSummary;
+
+    @Field(type = FieldType.Keyword)
+    private String aiCategory;
+
+    @Field(type = FieldType.Keyword)
+    private String moderationStatus;
+
+    @Field(type = FieldType.Keyword)
+    private String moderationReason;
+
+    @Field(type = FieldType.Boolean)
+    @Builder.Default
+    private boolean hidden = false;
+
     @Field(type = FieldType.Date, format = {DateFormat.date_hour_minute_second_millis, DateFormat.epoch_millis})
     @ValueConverter(ElasticsearchLocalDateTimeConverter.class)
     private LocalDateTime createdAt;

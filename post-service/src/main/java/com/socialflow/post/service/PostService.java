@@ -38,8 +38,8 @@ public class PostService {
     private final PollVoteRepository pollVoteRepository;
     private final PostKafkaProducer postKafkaProducer;
 
-    private static final Pattern HASHTAG_PATTERN = Pattern.compile("#(\\w+)");
-    private static final Pattern MENTION_PATTERN = Pattern.compile("@(\\w+)");
+    private static final Pattern HASHTAG_PATTERN = Pattern.compile("#([\\p{L}\\p{N}_]+)");
+    private static final Pattern MENTION_PATTERN = Pattern.compile("@([\\p{L}\\p{N}_]+)");
 
     @Transactional
     public PostResponseDto createPost(CreatePostRequest request, UserPrincipal currentUser) {
@@ -407,6 +407,36 @@ public class PostService {
                 .postId(postId)
                 .authorId(currentUser.getUserId())
                 .build());
+    }
+
+    @Transactional
+    public Map<String, Object> reindexAllPosts(int batchSize) {
+        int safeBatchSize = Math.max(1, Math.min(batchSize, 500));
+        int pageNumber = 0;
+        long totalEnqueued = 0;
+        int batches = 0;
+
+        Page<Post> page;
+        do {
+            page = postRepository.findAll(PageRequest.of(pageNumber, safeBatchSize, Sort.by("id").ascending()));
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            for (Post post : page.getContent()) {
+                postKafkaProducer.emitPostReindexSnapshot(post);
+                totalEnqueued++;
+            }
+            batches++;
+            pageNumber++;
+        } while (page.hasNext());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "REINDEX_ENQUEUED");
+        result.put("postsEnqueued", totalEnqueued);
+        result.put("batches", batches);
+        result.put("batchSize", safeBatchSize);
+        result.put("topic", PostKafkaProducer.POST_EVENTS_TOPIC);
+        return result;
     }
 
     private PostResponseDto mapToDto(Post post, Long currentUserId) {
