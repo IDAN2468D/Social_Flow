@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "SocialFlow — כל שירותי המערכת וטופיקי Kafka (בעברית)",
-    "description": "קולקציית Postman מלאה בעברית עבור מערכת SocialFlow. כל אחד מ-6 הטופיקים ב-Kafka מקבל תיקייה ייעודית ועובד באופן עצמאי לחלוטין דרך שער הכניסה (http://localhost:8088).",
+    "description": "קולקציית Postman מאוחדת ומלאה בעברית עבור כל שירותי ה-Back End של SocialFlow (לוקאלי ב-Docker וגם Render Cloud דרך {{baseUrl}}), ללא כפילויות.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -273,12 +273,45 @@
               ]
             }
           }
+        },
+        {
+          "name": "שינוי תפקיד משתמש (ADMIN בלבד)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/noa/role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "noa",
+                "role"
+              ]
+            }
+          }
         }
       ]
     },
     {
       "name": "2. פוסטים, תגובות וסטוריז — טופיק post-events",
-      "description": "בקשות ניהול פוסטים, תגובות וסטוריז השולחות אירועים לטופיק post-events ב-Kafka.",
+      "description": "בקשות ניהול פוסטים, תגובות, סקרים וסטוריז השולחות אירועים לטופיק post-events ב-Kafka.",
       "item": [
         {
           "name": "יצירת פוסט חדש (שומר מזהה פוסט אוטומטית)",
@@ -430,6 +463,63 @@
                 "posts",
                 "{{post_id}}",
                 "pin"
+              ]
+            }
+          }
+        },
+        {
+          "name": "הצבעה בסקר חי",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/poll/vote?optionId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "poll",
+                "vote"
+              ],
+              "query": [
+                {
+                  "key": "optionId",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "שמירה או הסרה מסימניות",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/posts/{{post_id}}/bookmark",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "posts",
+                "{{post_id}}",
+                "bookmark"
               ]
             }
           }
@@ -759,6 +849,86 @@
           }
         },
         {
+          "name": "פיד נעקבים (Following)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/following?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "feed",
+                "following"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "פיד טרנדים (Trending)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/trending?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "feed",
+                "trending"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "האשטאגים חמים",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/feed/trending-tags",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "feed",
+                "trending-tags"
+              ]
+            }
+          }
+        },
+        {
           "name": "אנליטיקת משתמש (Analytics)",
           "request": {
             "method": "GET",
@@ -769,12 +939,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8088/api/v1/feed/analytics?userId=1",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/api/v1/feed/analytics?userId=1",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8088",
               "path": [
                 "api",
                 "v1",
@@ -789,23 +957,184 @@
               ]
             }
           }
+        },
+        {
+          "name": "חיפוש משולב (Multi Search)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/multi?q=Kafka&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search",
+                "multi"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Kafka"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "חיפוש לפי האשטאג",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/tag/Java?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search",
+                "tag",
+                "Java"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
         }
       ]
     },
     {
-      "name": "AI Service & Agents",
+      "name": "6. התראות זמן אמת — טופיק notification-events",
+      "description": "שליפת התראות זמן אמת וסימון התראות כנקראו.",
       "item": [
         {
-          "name": "AI Health Check",
+          "name": "שליפת כל ההתראות",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        },
+        {
+          "name": "מונה התראות שלא נקראו",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/unread-count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "unread-count"
+              ]
+            }
+          }
+        },
+        {
+          "name": "סימון התראה כנקראה",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/{{notification_id}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notification_id}}",
+                "read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "סימון כל ההתראות כנקראו",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "read-all"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. שירות AI וסוכנים",
+      "item": [
+        {
+          "name": "בדיקת תקינות שירות ה-AI",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "http://localhost:8088/api/v1/ai/health",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/api/v1/ai/health",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8088",
               "path": [
                 "api",
                 "v1",
@@ -816,7 +1145,7 @@
           }
         },
         {
-          "name": "AI Agent Run (Publish to Kafka)",
+          "name": "הרצת סוכן AI (פרסום ל-Kafka)",
           "event": [
             {
               "listen": "test",
@@ -851,12 +1180,10 @@
               "raw": "{\n  \"topic\": \"חידושים בבינה מלאכותית\",\n  \"user_id\": 1,\n  \"target_audience\": \"קהל רשת חברתית\",\n  \"user_approved\": true\n}"
             },
             "url": {
-              "raw": "http://localhost:8088/api/v1/ai/agent/run",
-              "protocol": "http",
+              "raw": "{{baseUrl}}/api/v1/ai/agent/run",
               "host": [
-                "localhost"
+                "{{baseUrl}}"
               ],
-              "port": "8088",
               "path": [
                 "api",
                 "v1",
@@ -870,11 +1197,11 @@
       ]
     },
     {
-      "name": "Auth & Zero-Trust Lifecycle",
-      "description": "Refresh token rotation and single/all-session logout endpoints.",
+      "name": "8. אימות, רענון טוקנים והתנתקות (Zero-Trust)",
+      "description": "רוטציית Refresh Token והתנתקות מהסשן הנוכחי או מכל הסשנים.",
       "item": [
         {
-          "name": "Refresh Access & Refresh Tokens",
+          "name": "רענון טוקן גישה ו-Refresh Token",
           "request": {
             "method": "POST",
             "header": [
@@ -916,7 +1243,7 @@
           ]
         },
         {
-          "name": "Logout Current Session Family",
+          "name": "התנתקות ממשפחת הסשן הנוכחית",
           "request": {
             "method": "POST",
             "header": [
@@ -959,7 +1286,7 @@
           ]
         },
         {
-          "name": "Logout All Sessions (?all=true)",
+          "name": "התנתקות מכל הסשנים (?all=true)",
           "request": {
             "method": "POST",
             "header": [
@@ -1009,11 +1336,11 @@
       ]
     },
     {
-      "name": "Admin & ES Reconciliation",
-      "description": "ADMIN-only outbox snapshot reindexing from PostgreSQL to Elasticsearch.",
+      "name": "9. ניהול וסנכרון Elasticsearch (ADMIN)",
+      "description": "אינדוקס מחדש מ-PostgreSQL ל-Elasticsearch דרך Outbox (למנהלים בלבד).",
       "item": [
         {
-          "name": "Reindex All Posts to Elasticsearch (ADMIN)",
+          "name": "אינדוקס מחדש של כל הפוסטים ל-Elasticsearch (ADMIN)",
           "request": {
             "method": "POST",
             "header": [
@@ -1058,11 +1385,11 @@
       ]
     },
     {
-      "name": "Native ES 8.13 Search & Cursor Feeds",
-      "description": "search_after cursor pagination, fuzzy search, autocomplete suggest, and terms-aggregation facets.",
+      "name": "10. חיפוש ES 8.13 ופיד עם Cursor",
+      "description": "דפדוף Cursor מבוסס search_after, חיפוש מטושטש (Fuzzy), השלמה אוטומטית וצבירות תגיות.",
       "item": [
         {
-          "name": "Cursor Feed (For You via search_after)",
+          "name": "פיד עם Cursor (עבורך דרך search_after)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1105,7 +1432,7 @@
           ]
         },
         {
-          "name": "Cursor Search (with nextCursor)",
+          "name": "חיפוש עם Cursor (באמצעות nextCursor)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1154,7 +1481,7 @@
           ]
         },
         {
-          "name": "Fuzzy Search (?fuzzy=true)",
+          "name": "חיפוש מטושטש (?fuzzy=true)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1202,7 +1529,7 @@
           ]
         },
         {
-          "name": "Search Autocomplete Suggest",
+          "name": "השלמה אוטומטית בחיפוש (Suggest)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1244,7 +1571,7 @@
           ]
         },
         {
-          "name": "Search Facets (Tags, AI Tags, Categories, Sentiments)",
+          "name": "פילוח תוצאות חיפוש (Facets)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1280,6 +1607,70 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "11. בדיקת תקינות המיקרו-שירותים (Health)",
+      "description": "בדיקת תקינות דרך השער הראשי ({{baseUrl}}) וישירות מול השירותים ב-Render.",
+      "item": [
+        {
+          "name": "בדיקת תקינות API Gateway ({{baseUrl}})",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "תקינות User Service (Render)",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-user-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Post Service (Render)",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-post-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Feed Service (Render)",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-feed-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Media Service (Render)",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-media-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות Notification Service (Render)",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-notification-service.onrender.com/actuator/health"
+          }
+        },
+        {
+          "name": "תקינות AI Service (Render)",
+          "request": {
+            "method": "GET",
+            "url": "https://socialflow-ai-service.onrender.com/health"
+          }
         }
       ]
     }

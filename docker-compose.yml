@@ -288,6 +288,7 @@ services:
     mem_limit: 288m
     logging: *default-logging
     ports:
+      - "8000:8088"
       - "8088:8088"
     environment:
       JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m"
