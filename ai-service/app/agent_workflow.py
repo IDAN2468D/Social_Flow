@@ -4,14 +4,14 @@ Orchestrates autonomous content creation, trend discovery, content moderation,
 and human-in-the-loop publishing securely through API Gateway.
 """
 
-import json
+from datetime import datetime, timezone
 import logging
 import os
 import time
 from typing import Any, Dict, List, Optional, TypedDict
+import uuid
 
 import httpx
-from kafka import KafkaProducer
 from langgraph.graph import END, START, StateGraph
 
 from app.config import config
@@ -23,6 +23,7 @@ from app.guardrails import (
     redact_pii_text,
     wrap_untrusted_xml,
 )
+from app.kafka_agent import kafka_producer_manager
 from app.telemetry import get_correlation_id, log_structured, telemetry
 
 
@@ -252,50 +253,35 @@ async def moderate_content_node(state: AgentPostState) -> Dict[str, Any]:
 
 
 def _emit_ai_enrichment_event(post_id: Optional[int], state: AgentPostState) -> bool:
-    """Publishes an AI enrichment event to Kafka's ai-enrichment-events topic."""
-    producer: Optional[KafkaProducer] = None
-    try:
-        producer = KafkaProducer(
-            bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS,
-            value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
-            key_serializer=lambda k: str(k).encode("utf-8"),
-            request_timeout_ms=5000,
-        )
-        event_payload = {
-            "eventType": "AI_ENRICHMENT_CREATED",
-            "postId": post_id,
-            "userId": state.get("user_id", 1),
-            "topic": state.get("topic"),
-            "tags": state.get("suggested_tags", []),
-            "moderationStatus": state.get("moderation_status", {}),
-        }
-        future = producer.send(
-            config.AI_ENRICHMENT_TOPIC,
-            key=str(post_id or state.get("user_id", 1)),
-            value=event_payload,
-        )
-        future.get(timeout=5)
-        producer.flush()
-        return True
-    except Exception as exc:
-        log_structured(
-            logging.WARNING,
-            "kafka_enrichment_emit_failed",
-            topic=config.AI_ENRICHMENT_TOPIC,
-            post_id=post_id,
-            error=redact_pii_text(str(exc), record_metric=False),
-        )
-        return False
-    finally:
-        if producer is not None:
-            try:
-                producer.close()
-            except Exception as close_exc:
-                log_structured(
-                    logging.WARNING,
-                    "kafka_producer_close_failed",
-                    error=str(close_exc),
-                )
+    """Publishes an AI enrichment event to Kafka via the shared singleton producer."""
+    mod = state.get("moderation_status") or {}
+    is_safe = bool(mod.get("is_safe", True))
+    ai_tags = [
+        str(t).strip().lstrip("#")
+        for t in (state.get("suggested_tags") or [])
+        if str(t).strip()
+    ]
+    event_payload = {
+        "eventId": str(uuid.uuid4()),
+        "eventType": "POST_ENRICHED" if is_safe else "CONTENT_FLAGGED",
+        "postId": post_id,
+        "authorId": state.get("user_id", 1),
+        "userId": state.get("user_id", 1),
+        "topic": state.get("topic"),
+        "aiTags": ai_tags,
+        "tags": ai_tags,
+        "sentiment": str(mod.get("sentiment") or "POSITIVE").upper(),
+        "summary": str(mod.get("summary") or (state.get("draft_content") or "")[:120]),
+        "isSafe": is_safe,
+        "severity": "NONE" if is_safe else "HIGH",
+        "moderationStatus": mod,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    return kafka_producer_manager.send_sync(
+        config.AI_ENRICHMENT_TOPIC,
+        key=str(post_id or state.get("user_id", 1)),
+        payload=event_payload,
+    )
 
 
 async def publish_post_node(state: AgentPostState) -> Dict[str, Any]:

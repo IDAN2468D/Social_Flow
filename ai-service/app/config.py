@@ -20,8 +20,12 @@ class Config(BaseModel):
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9095")
+    KAFKA_AUTO_STARTUP: bool = _parse_bool(os.getenv("KAFKA_AUTO_STARTUP", "false"), False)
+    KAFKA_CONSUMER_GROUP: str = os.getenv("KAFKA_CONSUMER_GROUP", "ai-enrichment-group")
     POST_EVENTS_TOPIC: str = os.getenv("POST_EVENTS_TOPIC", "post-events")
     AI_ENRICHMENT_TOPIC: str = os.getenv("AI_ENRICHMENT_TOPIC", "ai-enrichment-events")
+    AI_ENRICHMENT_DLQ_TOPIC: str = os.getenv("AI_ENRICHMENT_DLQ_TOPIC", "ai-enrichment-dlq")
+    AI_KAFKA_MAX_CONCURRENCY: int = _parse_int(os.getenv("AI_KAFKA_MAX_CONCURRENCY", "2"), 2)
     CORS_ALLOWED_ORIGINS: str = os.getenv(
         "CORS_ALLOWED_ORIGINS",
         "http://localhost:8088,http://localhost:3000",

@@ -84,7 +84,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command: |
       "
-      for topic in post-events user-events feed-events reaction-events ai-enrichment-events; do
+      for topic in post-events user-events feed-events reaction-events media-events notification-events moderation-events ai-enrichment-events post-events-retry-0 post-events-retry-1 post-events-dlt reaction-events-retry-0 reaction-events-retry-1 reaction-events-dlt user-events-retry-0 user-events-retry-1 user-events-dlt ai-enrichment-events-retry-0 ai-enrichment-events-retry-1 ai-enrichment-events-dlt ai-enrichment-dlq; do
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic $$topic --partitions 3 --replication-factor 1
       done
       echo 'All Kafka topics initialized!'

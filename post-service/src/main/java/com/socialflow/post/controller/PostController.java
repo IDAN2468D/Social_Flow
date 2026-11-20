@@ -8,8 +8,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -129,5 +131,24 @@ public class PostController {
             @AuthenticationPrincipal UserPrincipal currentUser) {
         postService.deletePost(id, currentUser);
         return ResponseEntity.ok(Map.of("message", "Post deleted successfully", "postId", id.toString()));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/admin/reindex")
+    public ResponseEntity<Map<String, Object>> reindexAllPosts(
+            @RequestParam(defaultValue = "100") int batchSize,
+            @AuthenticationPrincipal UserPrincipal currentUser,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        boolean isAdmin;
+        if (currentUser != null) {
+            isAdmin = "ADMIN".equalsIgnoreCase(currentUser.getRole());
+        } else {
+            isAdmin = roleHeader != null && (roleHeader.trim().equalsIgnoreCase("ADMIN")
+                    || roleHeader.trim().equalsIgnoreCase("ROLE_ADMIN"));
+        }
+        if (!isAdmin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "ADMIN role required for Elasticsearch reindex");
+        }
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(postService.reindexAllPosts(batchSize));
     }
 }

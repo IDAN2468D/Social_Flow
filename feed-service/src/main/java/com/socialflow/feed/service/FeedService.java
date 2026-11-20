@@ -33,7 +33,7 @@ public class FeedService {
                     .collect(Collectors.toList());
 
             followingIds.add(userId);
-            return postSearchRepository.findByAuthorIdInOrderByCreatedAtDesc(followingIds, pageRequest);
+            return filterVisiblePage(postSearchRepository.findByAuthorIdInOrderByCreatedAtDesc(followingIds, pageRequest), pageRequest);
         } catch (Exception e) {
             return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
@@ -50,7 +50,9 @@ public class FeedService {
 
             PageRequest candidateRequest = PageRequest.of(0, 100, Sort.by("createdAt").descending());
             Page<PostDocument> candidatePage = postSearchRepository.findAllByOrderByCreatedAtDesc(candidateRequest);
-            List<PostDocument> candidates = new ArrayList<>(candidatePage.getContent());
+            List<PostDocument> candidates = candidatePage.getContent().stream()
+                    .filter(this::isVisible)
+                    .collect(Collectors.toCollection(ArrayList::new));
 
             LocalDateTime now = LocalDateTime.now();
 
@@ -78,7 +80,7 @@ public class FeedService {
     public Page<PostDocument> getTrendingFeed(int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("likesCount").descending());
         try {
-            return postSearchRepository.findAllByOrderByLikesCountDesc(pageRequest);
+            return filterVisiblePage(postSearchRepository.findAllByOrderByLikesCountDesc(pageRequest), pageRequest);
         } catch (Exception e) {
             return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
@@ -87,7 +89,7 @@ public class FeedService {
     public Page<PostDocument> getUserProfileFeed(Long authorId, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size);
         try {
-            return postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(authorId, pageRequest);
+            return filterVisiblePage(postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(authorId, pageRequest), pageRequest);
         } catch (Exception e) {
             return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
@@ -126,9 +128,9 @@ public class FeedService {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
         try {
             if (query == null || query.trim().isEmpty()) {
-                return postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+                return filterVisiblePage(postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest), pageRequest);
             }
-            return postSearchRepository.findByContentContainingIgnoreCase(query.trim(), pageRequest);
+            return filterVisiblePage(postSearchRepository.findByContentContainingIgnoreCase(query.trim(), pageRequest), pageRequest);
         } catch (Exception e) {
             return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
@@ -138,10 +140,10 @@ public class FeedService {
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
         try {
             if (tag == null || tag.trim().isEmpty()) {
-                return postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+                return filterVisiblePage(postSearchRepository.findAllByOrderByCreatedAtDesc(pageRequest), pageRequest);
             }
             String clean = tag.trim().replace("#", "");
-            return postSearchRepository.findByTagsContaining(clean, pageRequest);
+            return filterVisiblePage(postSearchRepository.findByTagsContaining(clean, pageRequest), pageRequest);
         } catch (Exception e) {
             return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
         }
@@ -365,8 +367,25 @@ public class FeedService {
         return empty;
     }
 
+    private boolean isVisible(PostDocument doc) {
+        return doc != null && !doc.isHidden() && !"HIDDEN".equalsIgnoreCase(doc.getVisibility());
+    }
+
+    private Page<PostDocument> filterVisiblePage(Page<PostDocument> page, PageRequest pageRequest) {
+        if (page == null || page.getContent() == null) {
+            return new PageImpl<>(Collections.emptyList(), pageRequest, 0);
+        }
+        List<PostDocument> visible = page.getContent().stream()
+                .filter(this::isVisible)
+                .collect(Collectors.toList());
+        if (visible.size() == page.getContent().size()) {
+            return page;
+        }
+        return new PageImpl<>(visible, pageRequest, visible.size());
+    }
+
     private void addCandidate(Map<String, PostDocument> candidateMap, PostDocument doc) {
-        if (doc == null) {
+        if (!isVisible(doc)) {
             return;
         }
         String key = doc.getPostId() != null

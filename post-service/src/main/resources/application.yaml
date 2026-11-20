@@ -31,8 +31,18 @@ spring:
     listener:
       auto-startup: ${KAFKA_AUTO_STARTUP:true}
     producer:
+      acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+
+outbox:
+  relay:
+    enabled: ${OUTBOX_RELAY_ENABLED:${KAFKA_AUTO_STARTUP:true}}
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+    batch-size: ${OUTBOX_BATCH_SIZE:50}
+    max-retries: ${OUTBOX_MAX_RETRIES:5}
 
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}

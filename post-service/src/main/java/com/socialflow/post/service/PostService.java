@@ -409,6 +409,36 @@ public class PostService {
                 .build());
     }
 
+    @Transactional
+    public Map<String, Object> reindexAllPosts(int batchSize) {
+        int safeBatchSize = Math.max(1, Math.min(batchSize, 500));
+        int pageNumber = 0;
+        long totalEnqueued = 0;
+        int batches = 0;
+
+        Page<Post> page;
+        do {
+            page = postRepository.findAll(PageRequest.of(pageNumber, safeBatchSize, Sort.by("id").ascending()));
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            for (Post post : page.getContent()) {
+                postKafkaProducer.emitPostReindexSnapshot(post);
+                totalEnqueued++;
+            }
+            batches++;
+            pageNumber++;
+        } while (page.hasNext());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "REINDEX_ENQUEUED");
+        result.put("postsEnqueued", totalEnqueued);
+        result.put("batches", batches);
+        result.put("batchSize", safeBatchSize);
+        result.put("topic", PostKafkaProducer.POST_EVENTS_TOPIC);
+        return result;
+    }
+
     private PostResponseDto mapToDto(Post post, Long currentUserId) {
         boolean isLiked = currentUserId != null && postLikeRepository.existsByPostIdAndUserId(post.getId(), currentUserId);
         boolean isBookmarked = currentUserId != null && postBookmarkRepository.existsByPostIdAndUserId(post.getId(), currentUserId);

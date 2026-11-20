@@ -1,4 +1,5 @@
 import base64
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
 import os
@@ -9,7 +10,7 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.agent_workflow import socialflow_agent
 from app.config import config
@@ -20,6 +21,7 @@ from app.guardrails import (
     redact_pii_text,
     resolve_authenticated_user_id,
 )
+from app.kafka_agent import kafka_enrichment_worker
 from app.telemetry import (
     get_correlation_id,
     log_structured,
@@ -35,13 +37,24 @@ from app.voice_service import (
     transcribe_audio,
 )
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await kafka_enrichment_worker.start()
+    try:
+        yield
+    finally:
+        await kafka_enrichment_worker.stop()
+
+
 app = FastAPI(
     title="SocialFlow AI Service (Gemini 3.5 Flash-Lite, LangGraph & LLMOps)",
     description=(
         "Real-time content moderation, smart tagging, sentiment analysis, RAG feed Q&A, "
-        "voice assistant, prompt-injection guardrails, and LLMOps telemetry for SocialFlow"
+        "autonomous Kafka enrichment, voice assistant, guardrails, and LLMOps telemetry for SocialFlow"
     ),
-    version="1.2.0",
+    version="1.3.0",
+    lifespan=lifespan,
 )
 
 
@@ -160,6 +173,19 @@ class VoiceTtsRequest(BaseModel):
     voice: Optional[str] = "he-IL-HilaNeural"
 
 
+class EnrichmentProcessRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    post_id: int = Field(alias="postId")
+    content: str
+    author_id: Optional[int] = Field(default=None, alias="authorId")
+    author_username: Optional[str] = Field(default=None, alias="authorUsername")
+    tags: Optional[List[str]] = None
+    event_id: Optional[str] = Field(default=None, alias="eventId")
+    event_type: str = Field(default="POST_CREATED", alias="eventType")
+    emit_kafka: bool = True
+
+
 @app.get("/health")
 @app.get("/api/v1/ai/health")
 async def health():
@@ -169,6 +195,44 @@ async def health():
         "model": gemini_client.model,
         "has_api_key": bool(gemini_client.api_key),
     }
+
+
+@app.get("/api/v1/ai/enrichment/status")
+async def enrichment_status():
+    return kafka_enrichment_worker.get_status()
+
+
+@app.post("/api/v1/ai/enrichment/process")
+async def trigger_enrichment_process(
+    req: EnrichmentProcessRequest,
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    x_auth_user_id: Optional[str] = Header(default=None, alias="X-Auth-UserId"),
+    x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
+):
+    """
+    Manual/Postman HTTP trigger for the autonomous POST_CREATED triage & enrichment
+    LangGraph pipeline (publishes POST_ENRICHED/CONTENT_FLAGGED to ai-enrichment-events
+    or routes errors to ai-enrichment-dlq).
+    """
+    resolved_user_id = resolve_authenticated_user_id(
+        x_user_id, x_auth_user_id, req.author_id or 1
+    )
+    _enforce_rate_limit(resolved_user_id, x_user_role)
+
+    event_payload = {
+        "eventId": req.event_id,
+        "eventType": req.event_type,
+        "postId": req.post_id,
+        "authorId": resolved_user_id,
+        "authorUsername": req.author_username,
+        "content": req.content,
+        "tags": req.tags or [],
+    }
+    return await kafka_enrichment_worker.process_event(
+        event_payload,
+        emit_kafka=req.emit_kafka,
+        bypass_dedup=True,
+    )
 
 
 @app.get("/api/v1/ai/metrics")
