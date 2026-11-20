@@ -468,11 +468,11 @@
       ]
     },
     {
-      "name": "4. AI Enrichment, LLMOps & Corrective RAG",
-      "description": "Autonomous Kafka enrichment trigger, LLMOps metrics, CRAG v2.0 + SSE streaming, and ADMIN config.",
+      "name": "4. העשרת AI אוטונומית, LLMOps ו-Corrective RAG",
+      "description": "הפעלת העשרת Kafka אוטונומית, מדדי LLMOps, חיפוש CRAG v2.0 עם הזרמת SSE והגדרות מנהל.",
       "item": [
         {
-          "name": "Trigger Autonomous Enrichment (POST /enrichment/process)",
+          "name": "הפעלת העשרה אוטונומית (POST /enrichment/process)",
           "request": {
             "method": "POST",
             "header": [
@@ -518,7 +518,7 @@
           ]
         },
         {
-          "name": "Kafka Enrichment Worker Status",
+          "name": "סטטוס צרכן ההעשרה ב-Kafka",
           "request": {
             "method": "GET",
             "header": [
@@ -555,7 +555,7 @@
           ]
         },
         {
-          "name": "LLMOps Metrics (JSON)",
+          "name": "מדדי LLMOps (פורמט JSON)",
           "request": {
             "method": "GET",
             "header": [
@@ -592,7 +592,7 @@
           ]
         },
         {
-          "name": "LLMOps Metrics (Prometheus Format)",
+          "name": "מדדי LLMOps (פורמט Prometheus)",
           "request": {
             "method": "GET",
             "header": [
@@ -634,7 +634,7 @@
           ]
         },
         {
-          "name": "Ask Feed v2.0 (Corrective RAG + Citations)",
+          "name": "שאלת פיד v2.0 (Corrective RAG + ציטוטים)",
           "request": {
             "method": "POST",
             "header": [
@@ -679,7 +679,7 @@
           ]
         },
         {
-          "name": "Ask Feed v2.0 Stream (SSE)",
+          "name": "שאלת פיד v2.0 בהזרמה (SSE Stream)",
           "request": {
             "method": "POST",
             "header": [
@@ -728,7 +728,7 @@
           ]
         },
         {
-          "name": "Update AI Config (ADMIN Only)",
+          "name": "עדכון הגדרות AI (ADMIN בלבד)",
           "request": {
             "method": "POST",
             "header": [
