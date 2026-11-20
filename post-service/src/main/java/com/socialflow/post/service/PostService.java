@@ -8,6 +8,7 @@ import com.socialflow.post.event.PostDeletedEvent;
 import com.socialflow.post.event.PostLikedEvent;
 import com.socialflow.post.event.PostPinnedEvent;
 import com.socialflow.post.event.PostRepostedEvent;
+import com.socialflow.post.event.ReactionEvent;
 import com.socialflow.post.model.*;
 import com.socialflow.post.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -237,6 +238,15 @@ public class PostService {
                     .authorId(post.getAuthorId())
                     .liked(likedEvent)
                     .build());
+        } else {
+            postKafkaProducer.emitReactionEvent(ReactionEvent.builder()
+                    .postId(postId)
+                    .userId(currentUser.getUserId())
+                    .username(currentUser.getUsername())
+                    .authorId(post.getAuthorId())
+                    .reactionType(reactionType.name())
+                    .active(true)
+                    .build());
         }
 
         return getReactionSummary(postId, activeReaction);
@@ -386,7 +396,8 @@ public class PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found with id: " + postId));
 
-        if (!post.getAuthorId().equals(currentUser.getUserId())) {
+        boolean isAdmin = currentUser != null && "ADMIN".equalsIgnoreCase(currentUser.getRole());
+        if (!isAdmin && (currentUser == null || !post.getAuthorId().equals(currentUser.getUserId()))) {
             throw new IllegalArgumentException("Unauthorized: You can only delete your own posts");
         }
 

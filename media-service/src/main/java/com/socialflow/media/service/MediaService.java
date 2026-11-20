@@ -5,8 +5,11 @@ import com.socialflow.media.dto.UploadUrlResponse;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -14,6 +17,11 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -25,15 +33,26 @@ public class MediaService {
     private final S3Presigner s3Presigner;
     private final String bucketName;
     private final String publicEndpoint;
+    private final MediaEventProducer mediaEventProducer;
 
     public MediaService(S3Client s3Client,
                         S3Presigner s3Presigner,
+                        String bucketName,
+                        String publicEndpoint) {
+        this(s3Client, s3Presigner, bucketName, publicEndpoint, null);
+    }
+
+    @Autowired
+    public MediaService(S3Client s3Client,
+                        S3Presigner s3Presigner,
                         @Value("${aws.s3.bucket}") String bucketName,
-                        @Value("${aws.s3.public-endpoint}") String publicEndpoint) {
+                        @Value("${aws.s3.public-endpoint}") String publicEndpoint,
+                        MediaEventProducer mediaEventProducer) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.bucketName = bucketName;
         this.publicEndpoint = publicEndpoint.replaceAll("/+$", "");
+        this.mediaEventProducer = mediaEventProducer;
     }
 
     @PostConstruct
@@ -145,12 +164,73 @@ public class MediaService {
                 .build();
 
         PresignedPutObjectRequest presignedPutObjectRequest = s3Presigner.presignPutObject(presignRequest);
+        String accessUrl = publicEndpoint + "/" + bucketName + "/" + fileKey;
+
+        if (mediaEventProducer != null) {
+            mediaEventProducer.emitUploadUrlGenerated(userId, fileKey, request.filename(), request.contentType(), accessUrl);
+        }
 
         return new UploadUrlResponse(
                 fileKey,
                 presignedPutObjectRequest.url().toString(),
-                publicEndpoint + "/" + bucketName + "/" + fileKey
+                accessUrl
         );
+    }
+
+    public void deleteMedia(Long userId, boolean isAdmin, String fileKey) {
+        if (fileKey == null || fileKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "מפתח הקובץ למחיקה חסר");
+        }
+        String normalizedKey = fileKey.trim().replaceAll("^/+", "");
+        String expectedPrefix = "uploads/" + userId + "/";
+        if (!isAdmin && !normalizedKey.startsWith(expectedPrefix)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "אין הרשאה למחוק קובץ של משתמש אחר");
+        }
+        s3Client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(bucketName)
+                .key(normalizedKey)
+                .build());
+        if (mediaEventProducer != null) {
+            mediaEventProducer.emitMediaDeleted(userId, normalizedKey);
+        }
+    }
+
+    public Map<String, Object> listUserMedia(Long userId, boolean all, boolean isAdmin) {
+        String prefix = (all && isAdmin) ? "uploads/" : "uploads/" + userId + "/";
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix(prefix)
+                .build();
+
+        List<S3Object> contents = new ArrayList<>();
+        ListObjectsV2Response response = s3Client.listObjectsV2(request);
+        if (response != null && response.contents() != null) {
+            contents.addAll(response.contents());
+        }
+
+        contents.sort(Comparator.comparing(
+                S3Object::lastModified,
+                Comparator.nullsLast(Comparator.reverseOrder())
+        ));
+
+        List<Map<String, Object>> files = new ArrayList<>();
+        for (S3Object obj : contents) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("fileKey", obj.key());
+            item.put("sizeBytes", obj.size());
+            if (obj.lastModified() != null) {
+                item.put("lastModified", obj.lastModified().toString());
+            }
+            item.put("accessUrl", publicEndpoint + "/" + bucketName + "/" + obj.key());
+            files.add(item);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("userId", userId);
+        result.put("bucket", bucketName);
+        result.put("totalUploaded", files.size());
+        result.put("files", files);
+        return result;
     }
 
     private String getFileExtension(String filename) {

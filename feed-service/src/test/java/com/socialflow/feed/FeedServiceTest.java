@@ -2,6 +2,7 @@ package com.socialflow.feed;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.socialflow.feed.consumer.FeedKafkaConsumer;
+import com.socialflow.feed.controller.FeedController;
 import com.socialflow.feed.controller.SearchController;
 import com.socialflow.feed.document.PostDocument;
 import com.socialflow.feed.dto.TrendingTagDto;
@@ -328,5 +329,105 @@ class FeedServiceTest {
         assertThat(posts).extracting(PostDocument::getPostId).containsExactly(9L);
         assertThat(users).hasSize(1);
         assertThat(users.get(0)).containsEntry("username", "daniel");
+    }
+
+    @Test
+    @DisplayName("getUserAnalytics aggregates posts, engagement, followers, top 5 tags, and topPost")
+    @SuppressWarnings("unchecked")
+    void getUserAnalytics_Success() {
+        Long userId = 1L;
+        PostDocument p1 = PostDocument.builder()
+                .id("1")
+                .postId(101L)
+                .authorId(userId)
+                .content("First post")
+                .likesCount(5)
+                .commentsCount(2)
+                .repostsCount(1)
+                .tags(List.of("Java", "spring", "docker", "kafka", "ai", "extra"))
+                .createdAt(LocalDateTime.now().minusDays(2))
+                .build();
+        PostDocument p2 = PostDocument.builder()
+                .id("2")
+                .postId(102L)
+                .authorId(userId)
+                .content("Top engagement post")
+                .likesCount(20)
+                .commentsCount(10)
+                .repostsCount(5)
+                .tags(List.of("spring", "java"))
+                .createdAt(LocalDateTime.now().minusDays(1))
+                .build();
+        PostDocument p3 = PostDocument.builder()
+                .id("3")
+                .postId(103L)
+                .authorId(userId)
+                .content("Third post")
+                .likesCount(1)
+                .commentsCount(0)
+                .repostsCount(0)
+                .tags(List.of("spring", "kafka"))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(eq(userId), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(p1, p2, p3)));
+        when(followerRelationRepository.countByFollowingId(userId)).thenReturn(12L);
+        when(followerRelationRepository.countByFollowerId(userId)).thenReturn(7L);
+
+        Map<String, Object> analytics = feedService.getUserAnalytics(userId);
+
+        assertThat(analytics).containsEntry("userId", 1L);
+        assertThat(analytics).containsEntry("totalPosts", 3);
+        assertThat(analytics).containsEntry("totalLikes", 26L);
+        assertThat(analytics).containsEntry("totalComments", 12L);
+        assertThat(analytics).containsEntry("totalReposts", 6L);
+        assertThat(analytics).containsEntry("followersCount", 12L);
+        assertThat(analytics).containsEntry("followingCount", 7L);
+
+        List<Map<String, Object>> topTags = (List<Map<String, Object>>) analytics.get("topTags");
+        assertThat(topTags).hasSize(5);
+        assertThat(topTags.get(0)).containsEntry("tag", "spring").containsEntry("count", 3L);
+
+        Map<String, Object> topPost = (Map<String, Object>) analytics.get("topPost");
+        assertThat(topPost).isNotNull();
+        assertThat(topPost).containsEntry("postId", 102L);
+        assertThat(topPost).containsEntry("content", "Top engagement post");
+
+        // Verify FeedController resolves explicit param, X-Auth-UserId header fallback, and default 1L
+        FeedController controller = new FeedController(feedService);
+        ResponseEntity<Map<String, Object>> viaParam = controller.getUserAnalytics(1L, "99");
+        assertThat(viaParam.getBody()).containsEntry("userId", 1L);
+
+        ResponseEntity<Map<String, Object>> viaHeader = controller.getUserAnalytics(null, "1");
+        assertThat(viaHeader.getBody()).containsEntry("userId", 1L);
+
+        ResponseEntity<Map<String, Object>> viaDefault = controller.getUserAnalytics(null, null);
+        assertThat(viaDefault.getBody()).containsEntry("userId", 1L);
+    }
+
+    @Test
+    @DisplayName("getUserAnalytics handles empty posts and repository exceptions gracefully")
+    void getUserAnalytics_EmptyAndException_HandledGracefully() {
+        when(postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(eq(5L), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(followerRelationRepository.countByFollowingId(5L)).thenReturn(0L);
+        when(followerRelationRepository.countByFollowerId(5L)).thenReturn(0L);
+
+        Map<String, Object> emptyResult = feedService.getUserAnalytics(5L);
+        assertThat(emptyResult).containsEntry("userId", 5L);
+        assertThat(emptyResult).containsEntry("totalPosts", 0);
+        assertThat(emptyResult).containsEntry("topPost", null);
+        assertThat((List<?>) emptyResult.get("topTags")).isEmpty();
+
+        when(postSearchRepository.findByAuthorIdOrderByIsPinnedDescCreatedAtDesc(eq(6L), any(PageRequest.class)))
+                .thenThrow(new RuntimeException("Elasticsearch unavailable"));
+
+        Map<String, Object> errorResult = feedService.getUserAnalytics(6L);
+        assertThat(errorResult).containsEntry("userId", 6L);
+        assertThat(errorResult).containsEntry("totalPosts", 0);
+        assertThat(errorResult).containsEntry("totalLikes", 0L);
+        assertThat(errorResult).containsEntry("topPost", null);
+        assertThat((List<?>) errorResult.get("topTags")).isEmpty();
     }
 }

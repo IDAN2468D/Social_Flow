@@ -112,6 +112,7 @@ public class UserService {
         }
 
         User savedUser = userRepository.save(user);
+        eventProducer.emitUserProfileUpdated(savedUser.getId(), savedUser.getUsername(), savedUser.getFullName(), savedUser.getBio());
         return buildProfileDto(savedUser, savedUser);
     }
 
@@ -134,6 +135,24 @@ public class UserService {
 
     public List<Long> getFollowingIds(Long userId) {
         return followerRepository.findFollowingIdsByFollowerId(userId);
+    }
+
+    @Transactional
+    public UserProfileDto updateUserRole(String targetIdentifier, String newRole) {
+        if (newRole == null || newRole.isBlank()) {
+            throw new IllegalArgumentException("תפקיד לא תקין");
+        }
+        String normalized = newRole.trim().toUpperCase();
+        if (normalized.startsWith("ROLE_")) {
+            normalized = normalized.substring(5);
+        }
+        if (!"USER".equals(normalized) && !"ADMIN".equals(normalized)) {
+            throw new IllegalArgumentException("תפקיד חוקי הוא USER או ADMIN בלבד");
+        }
+        User targetUser = resolveTargetUser(targetIdentifier);
+        targetUser.setRole(normalized);
+        User saved = userRepository.save(targetUser);
+        return buildProfileDto(saved, null);
     }
 
     private User findActingUser(String currentUsername) {
@@ -198,6 +217,7 @@ public class UserService {
         dto.setFullName(targetUser.getFullName());
         dto.setBio(targetUser.getBio());
         dto.setProfileImageUrl(targetUser.getProfileImageUrl());
+        dto.setRole(targetUser.getRole());
         dto.setFollowersCount(followerRepository.countByFollowingId(targetUser.getId()));
         dto.setFollowingCount(followerRepository.countByFollowerId(targetUser.getId()));
 

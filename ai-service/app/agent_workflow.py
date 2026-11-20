@@ -16,6 +16,7 @@ class AgentPostState(TypedDict):
     topic: str
     user_id: int
     target_audience: Optional[str]
+    auth_header: Optional[str]
     trends_context: List[str]
     draft_content: str
     suggested_tags: List[str]
@@ -211,14 +212,19 @@ async def publish_post_node(state: AgentPostState) -> Dict[str, Any]:
         headers = {
             "Content-Type": "application/json",
             "X-Auth-UserId": str(user_id),
-            "X-Auth-Username": "agent-user"
+            "X-Auth-Username": "ai-agent"
         }
-        if state.get("auth_header"):
-            headers["Authorization"] = state["auth_header"]
+        auth_header = state.get("auth_header")
+        if auth_header:
+            headers["Authorization"] = auth_header
+            target_url = f"{GATEWAY_BASE}/api/v1/posts"
+        else:
+            post_service_uri = os.getenv("POST_SERVICE_URI", GATEWAY_BASE)
+            target_url = f"{post_service_uri}/api/v1/posts"
 
         async with httpx.AsyncClient(timeout=8.0) as client:
             res = await client.post(
-                f"{GATEWAY_BASE}/api/v1/posts",
+                target_url,
                 json=payload,
                 headers=headers
             )

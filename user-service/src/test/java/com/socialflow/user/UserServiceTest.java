@@ -190,5 +190,26 @@ class UserServiceTest {
         ResponseEntity<UserProfileDto> anonHeaderUpdate = controller.updateProfile(null, updateReq, anon, "idan", null);
         assertEquals(HttpStatus.OK, anonHeaderUpdate.getStatusCode());
         verify(mockedService, times(2)).updateProfile("idan", updateReq);
+
+        UsernamePasswordAuthenticationToken adminAuth = new UsernamePasswordAuthenticationToken(
+                "adminUser", null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        UserProfileDto noaUpdated = new UserProfileDto();
+        noaUpdated.setUsername("noa");
+        noaUpdated.setFullName("Updated By Admin");
+        when(mockedService.updateProfile("noa", updateReq)).thenReturn(noaUpdated);
+        ResponseEntity<UserProfileDto> adminUpdateRes = controller.updateProfile("noa", updateReq, adminAuth, null, null);
+        assertEquals(HttpStatus.OK, adminUpdateRes.getStatusCode());
+        assertEquals("noa", adminUpdateRes.getBody().getUsername());
+    }
+
+    @Test
+    void testAdminUpdateUserRole() {
+        when(userRepository.findByUsername("noa")).thenReturn(Optional.of(targetUser));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UserProfileDto promoted = userService.updateUserRole("noa", "ADMIN");
+        assertEquals("ADMIN", promoted.getRole());
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateUserRole("noa", "SUPERUSER"));
     }
 }

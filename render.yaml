@@ -13,6 +13,10 @@ databases:
 envVarGroups:
   - name: socialflow-shared-env
     envVars:
+      # Cap HikariCP pool per service for Render Free PostgreSQL connection limits
+      - key: DB_POOL_SIZE
+        value: "2"
+
       # Auto-generated cryptographically secure JWT secret shared across all services
       - key: JWT_SECRET
         generateValue: true
@@ -23,18 +27,9 @@ envVarGroups:
       - key: GEMINI_MODEL
         value: gemini-3.5-flash-lite
 
-      # External Kafka (e.g. Upstash Kafka / Redpanda / Confluent Cloud)
-      # Flip KAFKA_AUTO_STARTUP to "true" once SPRING_KAFKA_BOOTSTRAP_SERVERS is configured
-      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
-        sync: false
-      - key: KAFKA_BOOTSTRAP_SERVERS
-        sync: false
+      # Kafka enabled via socialflow-kafka Private Service (flip to "false" if deploying without pserv)
       - key: KAFKA_AUTO_STARTUP
-        value: "false"
-
-      # External Elasticsearch 8 (e.g. Elastic Cloud)
-      - key: SPRING_ELASTICSEARCH_URIS
-        sync: false
+        value: "true"
 
       # External S3 / Cloudflare R2 / MinIO Object Storage for Media Service
       - key: AWS_S3_ENDPOINT
@@ -51,23 +46,7 @@ envVarGroups:
         sync: false
 
 services:
-  # 1. Next.js 15 Frontend Web App (Public Entry Point)
-  - type: web
-    name: socialflow-frontend
-    runtime: docker
-    dockerfilePath: ./frontend/Dockerfile
-    dockerContext: ./frontend
-    plan: free
-    autoDeploy: true
-    healthCheckPath: /
-    envVars:
-      - key: API_GATEWAY_HOSTPORT
-        fromService:
-          type: web
-          name: socialflow-api-gateway
-          property: hostport
-
-  # 2. Spring Cloud API Gateway
+  # 1. Spring Cloud API Gateway (Public Entry Point)
   - type: web
     name: socialflow-api-gateway
     runtime: docker
@@ -83,31 +62,61 @@ services:
           type: web
           name: socialflow-user-service
           property: hostport
+      - key: USER_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-user-service
+          property: host
       - key: POST_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-post-service
           property: hostport
+      - key: POST_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-post-service
+          property: host
       - key: FEED_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-feed-service
           property: hostport
+      - key: FEED_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-feed-service
+          property: host
       - key: MEDIA_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-media-service
           property: hostport
+      - key: MEDIA_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-media-service
+          property: host
       - key: NOTIFICATION_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-notification-service
           property: hostport
+      - key: NOTIFICATION_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-notification-service
+          property: host
       - key: AI_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-ai-service
           property: hostport
+      - key: AI_SERVICE_HOST
+        fromService:
+          type: web
+          name: socialflow-ai-service
+          property: host
 
   # 3. User & Auth Service (Spring Boot 3)
   - type: web
@@ -120,6 +129,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -152,6 +166,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -184,6 +203,16 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_ELASTICSEARCH_HOSTPORT
+        fromService:
+          type: pserv
+          name: socialflow-elasticsearch
+          property: hostport
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -228,6 +257,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: DB_HOST
         fromDatabase:
           name: socialflow-postgres
@@ -260,8 +294,56 @@ services:
     healthCheckPath: /health
     envVars:
       - fromGroup: socialflow-shared-env
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
       - key: FEED_SERVICE_HOSTPORT
         fromService:
           type: web
           name: socialflow-feed-service
           property: hostport
+
+  # 9. Apache Kafka Broker (KRaft Single-Node Private Service — requires paid plan on Render)
+  - type: pserv
+    name: socialflow-kafka
+    runtime: docker
+    dockerfilePath: ./kafka/Dockerfile
+    dockerContext: ./kafka
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "9092"
+
+  # 10. Kafka UI (Visual Event & Topic Explorer)
+  - type: web
+    name: socialflow-kafka-ui
+    runtime: docker
+    dockerfilePath: ./kafka-ui/Dockerfile
+    dockerContext: ./kafka-ui
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: KAFKA_CLUSTERS_0_NAME
+        value: socialflow-cluster
+      - key: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+        fromService:
+          type: pserv
+          name: socialflow-kafka
+          property: hostport
+
+  # 11. Elasticsearch 8 (Single-Node Private Service — requires paid plan on Render)
+  - type: pserv
+    name: socialflow-elasticsearch
+    runtime: docker
+    dockerfilePath: ./elasticsearch/Dockerfile
+    dockerContext: ./elasticsearch
+    plan: standard
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "9200"

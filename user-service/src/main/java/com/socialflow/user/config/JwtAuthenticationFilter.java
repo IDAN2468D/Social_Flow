@@ -45,10 +45,11 @@ public class JwtAuthenticationFilter implements Filter {
             gatewayUsername = request.getHeader("X-User-Name");
         }
         if (gatewayUsername != null && !gatewayUsername.isBlank() && SecurityContextHolder.getContext().getAuthentication() == null) {
+            String role = normalizeRole(request.getHeader("X-User-Role"));
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     gatewayUsername.trim(),
                     null,
-                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
             );
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -68,13 +69,14 @@ public class JwtAuthenticationFilter implements Filter {
         try {
             final String username = jwtService.extractUsername(jwt);
 
-            // אימות המשתמש והכנסתו ל-SecurityContext עם הרשאת ROLE_USER
+            // אימות המשתמש והכנסתו ל-SecurityContext עם הרשאת ROLE המתאימה
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 if (jwtService.isTokenValid(jwt, username)) {
+                    String role = normalizeRole(jwtService.extractRole(jwt));
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             username,
                             null,
-                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -85,5 +87,13 @@ public class JwtAuthenticationFilter implements Filter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String normalizeRole(String rawRole) {
+        if (rawRole == null || rawRole.isBlank()) {
+            return "USER";
+        }
+        String trimmed = rawRole.trim().toUpperCase();
+        return trimmed.startsWith("ROLE_") ? trimmed.substring(5) : trimmed;
     }
 }

@@ -1,88 +1,68 @@
-# SocialFlow — Technical & Design Specification (SPEC)
+# SocialFlow — Technical Specification (SPEC): Pure Java Microservices Back End
 
-**Version:** 2.0 (Obsidian Liquid Glass Design System)  
-**Target Directory:** `frontend/` (`Next.js 15.2`, `React 19`, `Tailwind CSS v4`, `Framer Motion`, `Lucide React`, `Zustand`)
-
----
-
-## 1. Color Palette — Obsidian Liquid Glass
-
-| Token | CSS Variable | Value / Utility | Usage |
-| :--- | :--- | :--- | :--- |
-| **Background Primary** | `--bg-primary` | `#090A0F` (`bg-[#090A0F]`) | Global viewport canvas |
-| **Background Elevated / Bento Tile** | `--bg-bento` | `rgba(18, 21, 33, 0.72)` + `backdrop-blur-xl` | Cards, Bento modules, sticky rails |
-| **Glass Surface Hover** | `--bg-bento-hover` | `rgba(24, 28, 44, 0.84)` | Interactive tile hover state |
-| **Glass Border** | `--border-glass` | `1px solid rgba(255, 255, 255, 0.08)` (`border-white/10`) | Default hairline border |
-| **Glass Border Hover** | `--border-glass-hover` | `rgba(99, 102, 241, 0.4)` (`hover:border-indigo-500/40`) | Active/focused glass tile border |
-| **Electric Indigo** | `--accent-indigo` | `#6366F1` | Primary brand actions, active nav, links |
-| **Cyber Violet** | `--accent-violet` | `#8B5CF6` | Secondary gradient stops, AI/Agent accents |
-| **Emerald Live Pulse** | `--accent-emerald` | `#10B981` | Kafka/WebSocket live status, online indicators |
-| **Rose Like Accent** | `--accent-rose` | `#F43F5E` | Like reaction active state & heart burst |
-| **Text Primary** | `--text-primary` | `#F8FAFC` | Headings, post copy, primary labels |
-| **Text Secondary** | `--text-secondary` | `#94A3B8` | Timestamps, handles, metadata |
-| **Text Muted** | `--text-muted` | `#64748B` | Placeholders, subtle counters |
+**Version:** 4.0 (Back End 13 - Java Syllabus Compliance)  
+**Scope:** Strictly Back End Microservices, Infrastructure, Testing, Postman & Cloud/K8s Deployment (no Frontend/UI).
 
 ---
 
-## 2. Typography & Bilingual Support
-- **Sans Font Stack (`--font-sans`):** `'Inter', 'Heebo', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif`
-  - `Inter` & `Plus Jakarta Sans` provide crisp geometric Latin rendering.
-  - `Heebo` delivers balanced, modern Hebrew typography at matching x-height.
-- **Monospace Font Stack (`--font-mono`):** `'JetBrains Mono', ui-monospace, SFMono-Regular, monospace`
-  - Used for engagement metrics, view counters, keyboard shortcuts (`Ctrl+K`), telemetry badges, and code snippets.
-- **Directionality:**
-  - Root `<html>` defaults to `lang="he" dir="rtl"` for the Hebrew-first experience while exposing `.dir-auto` (`unicode-bidi: plaintext`) and `dir="auto"` attributes on post content, comments, and inputs so English and Hebrew paragraphs align naturally.
+## 1. Microservices & Gateway Architecture
+
+All external API traffic enters through **Spring Cloud API Gateway (`:8088`)**.
+
+| Service | Gateway Routes (`:8088`) | Direct Port | Core Components & Persistence |
+| :--- | :--- | :---: | :--- |
+| **`api-gateway`** | `/*` | `8088` | `JwtAuthFilter` (`GlobalFilter`), `GatewayExceptionHandler` (`ErrorWebExceptionHandler`), CORS config, forwards `X-User-Id`, `X-Auth-Username`, `X-User-Email`, `X-User-Role` |
+| **`user-service`** | `/api/auth/**`, `/api/v1/users/**`, `/api/users/**` | `8081` | `AuthController`, `UserController`, `SecurityConfig` (`@EnableMethodSecurity`), `JwtService`, `UserEventProducer`, `GlobalExceptionHandler`, `PostgreSQL` (`users`, `followers`) |
+| **`post-service`** | `/api/v1/posts/**`, `/api/posts/**`, `/api/v1/stories/**`, `/api/stories/**` | `8082` | `PostController`, `StoryController`, `SecurityConfig` (`@EnableMethodSecurity`), `PostKafkaProducer`, `GlobalExceptionHandler`, `PostgreSQL` |
+| **`feed-service`** | `/api/v1/feed/**`, `/api/feed/**`, `/api/v1/search/**`, `/api/search/**` | `8083` | `FeedController`, `SearchController`, `FeedKafkaConsumer`, `PostElasticsearchRepository`, `GlobalExceptionHandler`, `PostgreSQL` + `Elasticsearch 8.13` |
+| **`media-service`** | `/api/v1/media/**`, `/api/media/**` | `8084` | `MediaController` (`POST /upload-url`, `POST /presign`, `DELETE /`), `MediaService` (AWS S3 SDK v2 + MinIO), `GlobalExceptionHandler` |
+| **`notification-service`** | `/api/v1/notifications/**`, `/ws/**` | `8085` | `NotificationController`, `NotificationKafkaConsumer`, `WebSocketConfig` (STOMP), `GlobalExceptionHandler`, `PostgreSQL` |
+| **`ai-service`** | `/api/v1/ai/**` | `8086` | Python FastAPI (`analyze`, `ask-feed` RAG, `chat-reply`, `/health`) |
 
 ---
 
-## 3. Responsive Layout Grid
-- **Desktop Container (`max-w-7xl mx-auto px-4 sm:px-6`):**
-  - 3-column asymmetric CSS Grid:
-    - **Left Rail:** `260px` sticky (`top-4`, `h-[calc(100vh-2rem)]`)
-    - **Center Stream:** `minmax(0, 640px)` single-focus feed column
-    - **Right Bento Sidebar:** `340px` sticky Bento module stack
-- **Tablet (`md`–`lg`):** Left rail condenses to compact icon rail or collapses; Right Bento sidebar moves below or into drawer.
-- **Mobile (`< md`):** Collapses into a **Sticky Top Glass Header** (`backdrop-blur-xl`) + **Bottom Floating Glass Dock** (`backdrop-blur-2xl`, `border-white/10`, safe-area padding).
+## 2. Security, JWT, HttpOnly Cookies & Role Enforcement
+1. **Authentication Flow (`user-service`):**
+   - `AuthService.login()` supports lookup by `username` or `email` (`BCryptPasswordEncoder`).
+   - `JwtService` embeds `userId`, `email`, `role` (`USER` default, `ADMIN` supported), and `sub` (`username`).
+   - `AuthController` returns `AuthResponse` JSON and sets `Set-Cookie: jwt=<token>; HttpOnly; SameSite=Lax; Path=/`.
+   - `UserApplication` ensures `users.role VARCHAR(50) NOT NULL DEFAULT 'USER'` on startup for legacy DB compatibility.
+2. **Gateway Enforcement (`api-gateway`):**
+   - `JwtAuthFilter` validates `Authorization: Bearer <token>` or `HttpOnly` cookie (`jwt`, `token`, `access_token`, `AUTH-TOKEN`).
+   - Allows anonymous access only to `/api/auth/**`, `/actuator/**`, Swagger/OpenAPI docs, `/ws/**`, `/api/v1/ai/health`, and configured public read endpoints (`GET /api/v1/search/**`, `GET /api/v1/feed/trending*`, `GET /api/v1/feed/for-you`, `GET /api/v1/stories/**`, `GET /api/v1/users/profile/**`, `GET /api/v1/users/search`).
+   - Returns structured `401 Unauthorized` JSON before routing protected calls when token is missing or invalid.
+   - Forwards normalized `X-User-Role` (`USER` / `ADMIN`), `X-User-Id`, `X-Auth-Username`, and `X-User-Email`.
+3. **Method-Level & Ownership Security (`user-service`, `post-service`, `media-service`):**
+   - `user-service` & `post-service` parse `X-User-Role` / JWT `role` claim into `ROLE_USER` / `ROLE_ADMIN`.
+   - `@EnableMethodSecurity` + `@PreAuthorize` protect write/admin operations (`PUT /api/v1/users/{target}/role` requires `ROLE_ADMIN`; profile edits & post/media deletions allow owner or `ADMIN`).
 
 ---
 
-## 4. Design System Utilities (`frontend/app/globals.css`)
-- `@import "tailwindcss";` (Tailwind CSS v4 entry point preserved).
-- `.glass-bento`: `background: var(--bg-bento)`, `backdrop-filter: blur(24px) saturate(180%)`, `border: 1px solid var(--border-glass)`, `border-radius: 20px`, inset top highlight, smooth border & elevation transition on hover.
-- `.glass-bento-interactive`: Extends `.glass-bento` with `hover:border-indigo-500/40` (`rgba(99, 102, 241, 0.4)`) and subtle indigo glow shadow.
-- `.glass-dock`: Floating mobile bottom bar / sticky header glass (`backdrop-blur-2xl`, `rgba(9, 10, 15, 0.78)`).
-- **Ambient Glow Orbs (`.bg-orb`, `.orb-1`, `.orb-2`, `.orb-3`):** Fixed non-interactive radial gradients (`#6366F1`, `#8B5CF6`, `#10B981`/`#06B6D4`) softly illuminating `#090A0F`.
-- **Custom Scrollbar:** Sleek `6px` dark obsidian track (`#090A0F`) with translucent `rgba(148, 163, 184, 0.25)` thumb and indigo hover accent.
-- **Animation Utilities:**
-  - `animate-pulse-live`: Emerald status ring pulse.
-  - `animate-shimmer`: Skeleton loader gradient sweep.
-  - `animate-spring-pop`: 200ms cubic-bezier spring pop for reaction icons.
-  - `animate-fade-up`: Smooth card entrance transition (180ms–240ms).
+## 3. Centralized Error Handling
+Every microservice implements `@RestControllerAdvice` (`GlobalExceptionHandler`) and `api-gateway` implements `ErrorWebExceptionHandler` (`GatewayExceptionHandler`), emitting uniform JSON:
+```json
+{
+  "timestamp": "...",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "...",
+  "path": "/api/..."
+}
+```
 
 ---
 
-## 5. Modular Component Architecture (`frontend/components/`)
-> Note: Existing components under `frontend/components/social/` will be refactored/migrated into clean domain folders while preserving all props, Zustand store hooks (`frontend/store/useSocialStore.ts`), Zod schemas (`frontend/lib/validations/social.schema.ts`), and server actions (`frontend/lib/actions/social.actions.ts`).
-
-| Module Path | Responsibility |
-| :--- | :--- |
-| `components/layout/AppShell.tsx` | 3-column responsive grid (`260px` \| `minmax(0,640px)` \| `340px`), ambient glow orbs, mobile header & floating dock |
-| `components/layout/LeftNavRail.tsx` | Navigation links, unread WebSocket notification badge, user mini-profile pill, primary gradient **New Post** CTA |
-| `components/layout/RightBentoSidebar.tsx` | 3 modular Bento cards: (1) Elasticsearch Instant Search & `Ctrl+K` trigger, (2) Trending Hashtags & Communities, (3) Who to Follow + Live System Telemetry badge (Kafka/WS indicator) |
-| `components/feed/FeedHeaderTabs.tsx` | Sticky `backdrop-blur-xl` header with pinned feed pills (`For You`, `Following`, `Trending`, `Media`) |
-| `components/composer/PostComposerCard.tsx` | Expandable glass composer with MinIO S3 upload progress bar, multi-image preview, Poll creator toggle, and character ring indicator |
-| `components/feed/PostCard.tsx` | Glass card with hover elevation, author verification badge, `dir="auto"` content typography, Pinterest/Bento multi-image grid, connected thread lines, interactive poll bars, and spring-animated reaction buttons |
-| `components/profile/BentoProfileHeader.tsx` | Profile banner, glass avatar card, 4-tile Bento stats grid (`Posts`, `Followers`, `Following`, `Engagement Impact`), and edit profile modal |
-| `components/search/CommandSearchModal.tsx` | `Ctrl+K` / `Cmd+K` Elasticsearch instant search modal across posts, users, and hashtags + AI RAG shortcut |
-| `components/ui/*` | Reusable Obsidian Liquid Glass primitives (skeletons, badges, character ring, lightbox modal) |
+## 4. Event-Driven Kafka & Elasticsearch 8 Flow
+- **Kafka Broker:** Confluent Kafka 7.6.0 (KRaft mode, `9095` host / `9092` internal, monitored via `Kafka UI :8080`).
+- **Topics:**
+  - `post-events` (produced by `PostKafkaProducer`): `POST_CREATED`, `POST_LIKED`, `COMMENT_CREATED`, `POST_REPOSTED`, `POST_PINNED`, `POST_DELETED`.
+  - `user-events` (produced by `UserEventProducer`): `UserRegisteredEvent`, `UserFollowedEvent`.
+- **Distinct Consumer Groups:** `feed-service-group` (indexes/updates/deletes `PostDocument` in Elasticsearch 8 + updates `FollowerRelation`) and `notification-service-group` (persists notifications + pushes over WebSocket STOMP).
 
 ---
 
-## 6. Backend & API Contracts (Preserved)
-- **API Gateway Rewrites (`next.config.mjs`):** `/api/:path*` → `${API_GATEWAY_URL || 'http://localhost:8088'}/api/:path*`
-- **Auth & Users:** `/api/auth/**`, `/api/users/**`, `/api/v1/users/**`
-- **Posts & Polls:** `/api/posts/**`, `/api/v1/posts/**`
-- **Feeds & Elasticsearch Search:** `/api/feed/**`, `/api/v1/feed/**`, `/api/v1/search/**`
-- **Media (MinIO S3):** `/api/media/**`, `/api/v1/media/**`
-- **AI & RAG (`ai-service`):** `/api/v1/ai/ask-feed`, `/api/v1/ai/analyze`, LangGraph agent endpoints
-- **Real-Time Notifications:** WebSocket STOMP endpoint & Zustand `notifications` state
+## 5. Testing, CI/CD & Orchestration
+- **Java Tests (`mvn test`):** JUnit 5 + Mockito unit/filter tests in all 6 Java modules (`user-service`, `api-gateway`, `post-service`, `feed-service`, `media-service`, `notification-service`).
+- **Python AI Tests:** `pytest ai-service/tests/test_agent.py`.
+- **Postman Collection:** `postman/SocialFlow.postman_collection.json` covering all Gateway REST routes and Actuator checks.
+- **Orchestration & Cloud:** `docker-compose.yml` (local stack), `k8s/*.yaml` (Kubernetes manifests), `render.yaml` (Render Blueprint), and `.github/workflows/ci.yml` (GitHub Actions).

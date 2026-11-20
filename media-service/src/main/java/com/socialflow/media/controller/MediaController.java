@@ -18,7 +18,7 @@ import javax.crypto.SecretKey;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/media")
+@RequestMapping({"/api/v1/media", "/api/media"})
 public class MediaController {
 
     private static final Logger log = LoggerFactory.getLogger(MediaController.class);
@@ -36,7 +36,20 @@ public class MediaController {
         return ResponseEntity.ok(Map.of("status", "UP", "service", "media-service"));
     }
 
-    @PostMapping("/upload-url")
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> listMyMedia(
+            @RequestParam(value = "all", defaultValue = "false") boolean all,
+            @RequestHeader(value = "X-User-Id", required = false) Long headerUserId,
+            @RequestHeader(value = "X-Auth-UserId", required = false) String gatewayUserId,
+            @RequestHeader(value = "X-User-Role", required = false) String gatewayRole,
+            @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        Long userId = resolveUserId(headerUserId, gatewayUserId, authHeader);
+        boolean isAdmin = resolveIsAdmin(gatewayRole, authHeader);
+        return ResponseEntity.ok(mediaService.listUserMedia(userId, all, isAdmin));
+    }
+
+    @PostMapping({"/upload-url", "/presign"})
     public ResponseEntity<UploadUrlResponse> getUploadUrl(
             @RequestHeader(value = "X-User-Id", required = false) Long headerUserId,
             @RequestHeader(value = "X-Auth-UserId", required = false) String gatewayUserId,
@@ -46,6 +59,39 @@ public class MediaController {
         Long userId = resolveUserId(headerUserId, gatewayUserId, authHeader);
         UploadUrlResponse response = mediaService.generateUploadUrl(userId, request);
         return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping
+    public ResponseEntity<Void> deleteMedia(
+            @RequestParam("key") String key,
+            @RequestHeader(value = "X-User-Id", required = false) Long headerUserId,
+            @RequestHeader(value = "X-Auth-UserId", required = false) String gatewayUserId,
+            @RequestHeader(value = "X-User-Role", required = false) String gatewayRole,
+            @RequestHeader(value = "Authorization", required = false) String authHeader
+    ) {
+        Long userId = resolveUserId(headerUserId, gatewayUserId, authHeader);
+        boolean isAdmin = resolveIsAdmin(gatewayRole, authHeader);
+        mediaService.deleteMedia(userId, isAdmin, key);
+        return ResponseEntity.noContent().build();
+    }
+
+    private boolean resolveIsAdmin(String gatewayRole, String authHeader) {
+        if (gatewayRole != null && gatewayRole.trim().equalsIgnoreCase("ADMIN")) {
+            return true;
+        }
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7);
+                SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+                Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+                Object roleObj = claims.get("role");
+                if (roleObj != null) {
+                    String role = String.valueOf(roleObj).trim().toUpperCase();
+                    return "ADMIN".equals(role) || "ROLE_ADMIN".equals(role);
+                }
+            } catch (Exception ignored) {}
+        }
+        return false;
     }
 
     private Long resolveUserId(Long headerUserId, String gatewayUserId, String authHeader) {
