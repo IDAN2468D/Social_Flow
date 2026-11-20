@@ -208,4 +208,92 @@ class JwtAuthFilterTest {
                 "ADMIN".equals(ex.getRequest().getHeaders().getFirst("X-User-Role")) &&
                 "admin".equals(ex.getRequest().getHeaders().getFirst("X-Auth-Username"))));
     }
+
+    @Test
+    void testSpoofedIdentityHeadersAreStrippedOnPublicPathsWithoutToken() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/feed/trending")
+                .header("X-User-Role", "ADMIN")
+                .header("X-User-Id", "1")
+                .header("X-Auth-UserId", "1")
+                .header("X-Auth-Username", "spoofedAdmin")
+                .header("X-User-Name", "spoofedAdmin")
+                .header("X-User-Email", "spoof@evil.com")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        jwtAuthFilter.filter(exchange, filterChain).block();
+
+        verify(filterChain, times(1)).filter(argThat(ex -> {
+            HttpHeaders h = ex.getRequest().getHeaders();
+            return !h.containsKey("X-User-Role")
+                    && !h.containsKey("X-User-Id")
+                    && !h.containsKey("X-Auth-UserId")
+                    && !h.containsKey("X-Auth-Username")
+                    && !h.containsKey("X-User-Name")
+                    && !h.containsKey("X-User-Email");
+        }));
+    }
+
+    @Test
+    void testSpoofedIdentityHeadersAreReplacedNotAppendedOnAuthenticatedRequest() {
+        String userToken = generateTestToken(42L, "idan", "idan@example.com", 60000);
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/v1/posts")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                .header("X-User-Role", "ADMIN")
+                .header("X-User-Id", "1")
+                .header("X-Auth-UserId", "1")
+                .header("X-Auth-Username", "spoofedAdmin")
+                .header("X-User-Custom", "evil")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        jwtAuthFilter.filter(exchange, filterChain).block();
+
+        verify(filterChain, times(1)).filter(argThat(ex -> {
+            HttpHeaders h = ex.getRequest().getHeaders();
+            return java.util.List.of("USER").equals(h.get("X-User-Role"))
+                    && java.util.List.of("42").equals(h.get("X-User-Id"))
+                    && java.util.List.of("42").equals(h.get("X-Auth-UserId"))
+                    && java.util.List.of("idan").equals(h.get("X-Auth-Username"))
+                    && !h.containsKey("X-User-Custom");
+        }));
+    }
+
+    @Test
+    void testSpoofedIdentityHeadersAreStrippedWhenInvalidTokenOnPublicPath() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/users/profile/idan")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer invalid.jwt.token")
+                .header("X-User-Role", "ADMIN")
+                .header("X-Auth-Username", "spoofed")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        jwtAuthFilter.filter(exchange, filterChain).block();
+
+        verify(filterChain, times(1)).filter(argThat(ex -> {
+            HttpHeaders h = ex.getRequest().getHeaders();
+            return !h.containsKey("X-User-Role") && !h.containsKey("X-Auth-Username");
+        }));
+    }
+
+    @Test
+    void testTokenMissingUserIdClaimReturns401OnProtectedPath() {
+        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        String missingUserIdToken = Jwts.builder()
+                .subject("idan")
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + 60000))
+                .signWith(key)
+                .compact();
+
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/v1/posts")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + missingUserIdToken)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        jwtAuthFilter.filter(exchange, filterChain).block();
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+        verify(filterChain, never()).filter(any());
+    }
 }

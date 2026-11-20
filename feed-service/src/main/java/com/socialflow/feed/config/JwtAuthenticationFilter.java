@@ -37,17 +37,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String gatewayUsername = request.getHeader("X-Auth-Username");
         final String gatewayUserId = request.getHeader("X-Auth-UserId");
 
-        if (gatewayUsername != null && !gatewayUsername.isEmpty() && gatewayUserId != null && !gatewayUserId.isEmpty()) {
-            UserPrincipal principal = new UserPrincipal(Long.parseLong(gatewayUserId), gatewayUsername);
-            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    principal,
-                    null,
-                    List.of(new SimpleGrantedAuthority("ROLE_USER"))
-            );
-            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authToken);
-            filterChain.doFilter(request, response);
-            return;
+        if (gatewayUsername != null && !gatewayUsername.isBlank() && gatewayUserId != null && !gatewayUserId.isBlank()) {
+            try {
+                Long parsedUserId = Long.parseLong(gatewayUserId.trim());
+                String role = normalizeRole(request.getHeader("X-User-Role"));
+                UserPrincipal principal = new UserPrincipal(parsedUserId, gatewayUsername.trim(), role);
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        principal,
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                );
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+                filterChain.doFilter(request, response);
+                return;
+            } catch (NumberFormatException ignored) {
+                // Fall through to Bearer JWT validation if gateway header is malformed
+            }
         }
 
         final String authHeader = request.getHeader("Authorization");
@@ -56,7 +62,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        final String jwt = authHeader.substring(7);
+        final String jwt = authHeader.substring(7).trim();
         try {
             SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
             Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(jwt).getPayload();
@@ -70,11 +76,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    UserPrincipal principal = new UserPrincipal(userId, username);
+                    String role = normalizeRole(claims.get("role") != null ? String.valueOf(claims.get("role")) : null);
+                    UserPrincipal principal = new UserPrincipal(userId, username, role);
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             principal,
                             null,
-                            List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                            List.of(new SimpleGrantedAuthority("ROLE_" + role))
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -84,5 +91,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String normalizeRole(String rawRole) {
+        if (rawRole == null || rawRole.isBlank()) {
+            return "USER";
+        }
+        String trimmed = rawRole.trim().toUpperCase();
+        return trimmed.startsWith("ROLE_") ? trimmed.substring(5) : trimmed;
     }
 }
