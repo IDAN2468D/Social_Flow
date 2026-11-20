@@ -59,13 +59,15 @@
                   "const data = pm.response.json();",
                   "const token = data.token || data.accessToken;",
                   "if (token) {",
-                  "  pm.collectionVariables.set(\"jwt_token\", token);",
-                  "  pm.collectionVariables.set(\"jwtToken\", token);",
-                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"jwt_token\", token); pm.environment.set(\"jwtToken\", token); }",
+                  "  if (pm.environment && pm.environment.name) {",
+                  "    pm.environment.set(\"jwt_token\", token);",
+                  "    pm.environment.set(\"jwtToken\", token);",
+                  "  } else {",
+                  "    console.warn(\"Select a Postman Environment (e.g. SocialFlow Local) so jwt_token can be saved securely as a secret.\");",
+                  "  }",
                   "}",
-                  "if (data.refreshToken) {",
-                  "  pm.collectionVariables.set(\"refreshToken\", data.refreshToken);",
-                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"refreshToken\", data.refreshToken); }",
+                  "if (data.refreshToken && pm.environment && pm.environment.name) {",
+                  "  pm.environment.set(\"refreshToken\", data.refreshToken);",
                   "}"
                 ]
               }
@@ -108,13 +110,15 @@
                   "const data = pm.response.json();",
                   "const token = data.token || data.accessToken;",
                   "if (token) {",
-                  "  pm.collectionVariables.set(\"jwt_token\", token);",
-                  "  pm.collectionVariables.set(\"jwtToken\", token);",
-                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"jwt_token\", token); pm.environment.set(\"jwtToken\", token); }",
+                  "  if (pm.environment && pm.environment.name) {",
+                  "    pm.environment.set(\"jwt_token\", token);",
+                  "    pm.environment.set(\"jwtToken\", token);",
+                  "  } else {",
+                  "    console.warn(\"Select a Postman Environment (e.g. SocialFlow Local) so jwt_token can be saved securely as a secret.\");",
+                  "  }",
                   "}",
-                  "if (data.refreshToken) {",
-                  "  pm.collectionVariables.set(\"refreshToken\", data.refreshToken);",
-                  "  if (pm.environment && pm.environment.name) { pm.environment.set(\"refreshToken\", data.refreshToken); }",
+                  "if (data.refreshToken && pm.environment && pm.environment.name) {",
+                  "  pm.environment.set(\"refreshToken\", data.refreshToken);",
                   "}"
                 ]
               }
@@ -904,8 +908,8 @@
                   "pm.test(\"Status is 200 OK\", function () { pm.response.to.have.status(200); });",
                   "const data = pm.response.json();",
                   "pm.test(\"Returns rotated token and refreshToken\", function () { pm.expect(data.token).to.be.a(\"string\"); pm.expect(data.refreshToken).to.be.a(\"string\"); });",
-                  "if (data.token) { pm.collectionVariables.set(\"jwt_token\", data.token); pm.collectionVariables.set(\"jwtToken\", data.token); if (pm.environment && pm.environment.name) { pm.environment.set(\"jwt_token\", data.token); pm.environment.set(\"jwtToken\", data.token); } }",
-                  "if (data.refreshToken) { pm.collectionVariables.set(\"refreshToken\", data.refreshToken); if (pm.environment && pm.environment.name) { pm.environment.set(\"refreshToken\", data.refreshToken); } }"
+                  "if (data.token) { if (pm.environment && pm.environment.name) { pm.environment.set(\"jwt_token\", data.token); pm.environment.set(\"jwtToken\", data.token); } else { console.warn(\"Select a Postman Environment (e.g. SocialFlow Local) so jwt_token can be saved securely as a secret.\"); } }",
+                  "if (data.refreshToken && pm.environment && pm.environment.name) { pm.environment.set(\"refreshToken\", data.refreshToken); }"
                 ]
               }
             }
