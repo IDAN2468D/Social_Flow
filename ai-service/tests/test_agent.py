@@ -151,3 +151,107 @@ def test_voice_daily_briefing_endpoint(monkeypatch):
     assert res_mp3.headers["content-type"] == "audio/mpeg"
     assert res_mp3.headers["x-voice-used"] == "he-IL-AvriNeural"
     assert res_mp3.content == b"ID3-MOCK-MP3"
+
+
+def test_agent_moderation_fail_closed_on_gemini_error(monkeypatch):
+    """When moderation errors (e.g., Gemini HTTP 400), agent must fail-closed and not publish."""
+    from unittest.mock import AsyncMock
+    import app.agent_workflow as wf
+
+    monkeypatch.setattr(wf.gemini_client, "api_key", "valid-looking-test-key-12345")
+    monkeypatch.setattr(
+        wf.gemini_client,
+        "generate_structured_json",
+        AsyncMock(return_value=(None, False, "Gemini API returned status 400")),
+    )
+    monkeypatch.setattr(
+        wf.gemini_client,
+        "analyze_post",
+        AsyncMock(
+            return_value={
+                "error": "Gemini API returned status 400",
+                "prompt_injection_detected": False,
+                "model_used": "gemini-3.5-flash-lite",
+            }
+        ),
+    )
+
+    result = asyncio.run(
+        wf.socialflow_agent.ainvoke(
+            {
+                "topic": "LangGraph",
+                "user_id": 3,
+                "target_audience": "AI devs",
+                "auth_header": "Bearer dummy",
+                "trends_context": [],
+                "draft_content": "",
+                "suggested_tags": [],
+                "suggested_poll": None,
+                "moderation_status": {},
+                "user_approved": True,
+                "published_post_id": None,
+                "logs": [],
+                "error": None,
+            }
+        )
+    )
+
+    assert result["moderation_status"]["is_safe"] is False
+    assert result["published_post_id"] is None
+    assert "Gemini API returned status 400" in (result.get("error") or "")
+    assert any("נכשלה" in log for log in result["logs"])
+    assert not any("פורסם בהצלחה" in log for log in result["logs"])
+
+
+def test_research_trends_deduplicates_and_trims_cleanly(monkeypatch):
+    """Verify research_trends_node deduplicates identical posts and avoids mid-word cuts."""
+    import app.agent_workflow as wf
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "content": [
+                    {"content": "פוסט בדיקה בעברית מתוך Postman ישירות לטופיק post-events! #Java #Kafka #SocialFlow"},
+                    {"content": "פוסט בדיקה בעברית מתוך Postman ישירות לטופיק post-events! #Java #Kafka #SocialFlow"},
+                    {"content": "Testing independent Kafka topics from Postman! #Kafka #SocialFlow"},
+                    {"content": "פוסט בדיקה בעברית מתוך Postman ישירות לטופיק post-events! #Java #Kafka #SocialFlow"},
+                ]
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers=None):
+            return FakeResponse()
+
+    monkeypatch.setattr(wf.httpx, "AsyncClient", FakeAsyncClient)
+
+    res = asyncio.run(wf.research_trends_node({"topic": "LangGraph", "user_id": 3, "logs": []}))
+    assert len(res["trends_context"]) == 2
+    assert "#SocialFlow" in res["trends_context"][0]
+
+
+def test_config_endpoint_rejects_placeholder_api_key(monkeypatch):
+    """POST /api/v1/ai/config must reject placeholder keys like YOUR_GEMINI_API_KEY."""
+    from fastapi.testclient import TestClient
+    import app.main as main_mod
+
+    monkeypatch.setattr(main_mod.gemini_client, "api_key", "existing-valid-key-xyz")
+    client = TestClient(main_mod.app)
+
+    res = client.post(
+        "/api/v1/ai/config",
+        json={"api_key": "YOUR_GEMINI_API_KEY", "model": "gemini-3.5-flash-lite"},
+        headers={"X-User-Role": "ADMIN"},
+    )
+    assert res.status_code == 400
+    assert main_mod.gemini_client.api_key == "existing-valid-key-xyz"

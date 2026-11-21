@@ -483,7 +483,21 @@ async def update_config(
     x_user_role: Optional[str] = Header(default=None, alias="X-User-Role"),
 ):
     _require_admin(x_user_role)
-    gemini_client.set_api_key(req.api_key)
+    cleaned_key = (req.api_key or "").strip()
+    placeholder_keys = {
+        "your_gemini_api_key",
+        "your-gemini-api-key",
+        "replace-with-your-key",
+        "test-key",
+        "changeme",
+    }
+    if cleaned_key:
+        if len(cleaned_key) < 10 or cleaned_key.lower() in placeholder_keys:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or placeholder Gemini API key; existing key preserved",
+            )
+        gemini_client.set_api_key(cleaned_key)
     if req.model:
         gemini_client.model = req.model
     log_structured(
