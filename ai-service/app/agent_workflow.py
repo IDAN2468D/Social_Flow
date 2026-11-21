@@ -74,16 +74,27 @@ async def research_trends_node(state: AgentPostState) -> Dict[str, Any]:
 
         async with httpx.AsyncClient(timeout=4.0) as client:
             res = await client.get(
-                f"{GATEWAY_BASE}/api/v1/feed/trending?userId={state.get('user_id', 1)}&page=0&size=5",
+                f"{GATEWAY_BASE}/api/v1/feed/trending?userId={state.get('user_id', 1)}&page=0&size=10",
                 headers=headers,
             )
             if res.status_code == 200:
                 data = res.json()
                 items = data.get("content", []) if isinstance(data, dict) else data
-                for item in items[:5]:
-                    snippet = str(item.get("content", ""))[:80]
-                    if snippet:
+                seen_trends = set()
+                for item in items:
+                    raw_content = " ".join(str(item.get("content", "")).split())
+                    if not raw_content:
+                        continue
+                    if len(raw_content) > 100:
+                        trimmed = raw_content[:100].rsplit(" ", 1)[0].strip()
+                        snippet = f"{trimmed or raw_content[:100]}..."
+                    else:
+                        snippet = raw_content
+                    if snippet not in seen_trends:
+                        seen_trends.add(snippet)
                         trends.append(snippet)
+                    if len(trends) >= 5:
+                        break
             else:
                 log_structured(
                     logging.WARNING,
@@ -160,7 +171,9 @@ async def draft_post_node(state: AgentPostState) -> Dict[str, Any]:
     )
 
     node_status = "success"
+    draft_err: Optional[str] = None
     if not gemini_client.api_key:
+        node_status = "mock"
         telemetry.record_llm_call(
             operation="draft_post",
             model="mock-drafter",
@@ -198,10 +211,11 @@ async def draft_post_node(state: AgentPostState) -> Dict[str, Any]:
             )
         else:
             node_status = "fallback"
+            draft_err = redact_pii_text(str(err or "unknown"), record_metric=False)
             log_structured(
                 logging.WARNING,
                 "draft_post_fallback",
-                error=redact_pii_text(str(err or "unknown"), record_metric=False),
+                error=draft_err,
             )
             draft = f"🚀 דיון בנושא {redact_pii_text(topic, record_metric=False)}: נקודות מעניינות לשיתוף עם הקהילה."
             tags = ["SocialFlow"]
@@ -214,7 +228,16 @@ async def draft_post_node(state: AgentPostState) -> Dict[str, Any]:
         status=node_status,
         user_id=state.get("user_id"),
     )
-    logs.append("✅ טיוטת הפוסט, התגיות והסקר נוצרו בהצלחה.")
+    if node_status == "fallback":
+        logs.append(
+            f"⚠️ יצירת הטיוטה באמצעות AI נכשלה ({draft_err}); הופעלה טיוטת גיבוי ללא סקר."
+        )
+    elif node_status == "mock":
+        logs.append("ℹ️ מפתח Gemini לא מוגדר; נוצרה טיוטת דמו כולל תגיות וסקר.")
+    elif poll is not None:
+        logs.append("✅ טיוטת הפוסט, התגיות והסקר נוצרו בהצלחה.")
+    else:
+        logs.append("✅ טיוטת הפוסט והתגיות נוצרו בהצלחה (ללא סקר).")
     return {
         "draft_content": draft,
         "suggested_tags": tags,
@@ -224,38 +247,58 @@ async def draft_post_node(state: AgentPostState) -> Dict[str, Any]:
 
 
 async def moderate_content_node(state: AgentPostState) -> Dict[str, Any]:
-    """Node 3: Moderates and validates post content for safety and guidelines."""
+    """Node 3: Moderates and validates post content for safety and guidelines (fail-closed)."""
     started = time.perf_counter()
     logs = list(state.get("logs", []))
     logs.append("🛡️ שלב 3: מפעיל בדיקת בטיחות ותאימות לכללי הקהילה...")
 
-    analysis = await gemini_client.analyze_post(
-        state["draft_content"], user_id=state.get("user_id")
+    analysis = dict(
+        await gemini_client.analyze_post(
+            state["draft_content"], user_id=state.get("user_id")
+        )
     )
-    is_safe = analysis.get("is_safe", True)
-
-    if is_safe:
-        logs.append("✅ הפוסט עבר בהצלחה את בדיקות הסינון ובטיחות התוכן.")
+    has_error = bool(analysis.get("error")) or ("is_safe" not in analysis)
+    if has_error:
+        is_safe = False
+        analysis["is_safe"] = False
+        reason = analysis.get("error") or "Moderation service unavailable"
+        analysis.setdefault("moderation_reason", reason)
+        logs.append(f"❌ בדיקת הבטיחות נכשלה ({reason}) — הפרסום נחסם מטעמי בטיחות.")
+        span_status = "error"
+        error_type: Optional[str] = "MODERATION_ERROR"
     else:
-        logs.append(f"⚠️ אזהרת סינון תוכן: {analysis.get('moderation_reason', 'Unsafe')}")
+        is_safe = bool(analysis["is_safe"])
+        if is_safe:
+            logs.append("✅ הפוסט עבר בהצלחה את בדיקות הסינון ובטיחות התוכן.")
+            span_status = "success"
+        else:
+            logs.append(
+                f"⚠️ אזהרת סינון תוכן: {analysis.get('moderation_reason', 'Unsafe')}"
+            )
+            span_status = "blocked"
+        error_type = None
 
     telemetry.record_node_span(
         graph_name="socialflow_agent",
         node_name="moderate_content",
         latency_ms=(time.perf_counter() - started) * 1000.0,
-        status="success" if is_safe else "blocked",
+        status=span_status,
+        error_type=error_type,
         user_id=state.get("user_id"),
     )
-    return {
+    result: Dict[str, Any] = {
         "moderation_status": analysis,
         "logs": logs,
     }
+    if has_error:
+        result["error"] = str(analysis.get("error") or "Moderation failed")
+    return result
 
 
 def _emit_ai_enrichment_event(post_id: Optional[int], state: AgentPostState) -> bool:
     """Publishes an AI enrichment event to Kafka via the shared singleton producer."""
     mod = state.get("moderation_status") or {}
-    is_safe = bool(mod.get("is_safe", True))
+    is_safe = bool(mod.get("is_safe", False))
     ai_tags = [
         str(t).strip().lstrip("#")
         for t in (state.get("suggested_tags") or [])
@@ -403,9 +446,9 @@ async def publish_post_node(state: AgentPostState) -> Dict[str, Any]:
 
 
 def route_after_moderation(state: AgentPostState) -> str:
-    """Routing: if content is unsafe, terminate; otherwise proceed to publish/review."""
+    """Routing: if content is unsafe or moderation errored, terminate; otherwise publish/review."""
     mod = state.get("moderation_status", {})
-    if not mod.get("is_safe", True):
+    if not mod.get("is_safe", False):
         return END
     return "publish_post"
 
